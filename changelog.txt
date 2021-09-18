@@ -1,0 +1,8 @@
+﻿---------------------------------------------------------------------------------------------------
+Version: 0.0.1
+Date: 2021-09-18
+  Notes:
+    - PRE-ALPHA
+    - First release for Factorio 1.1
+    - customize-team.png from https://www.svgrepo.com/svg/221092/group-team
+    - teams.png from https://www.svgrepo.com/svg/60828/team
