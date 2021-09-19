@@ -48,6 +48,14 @@ local EMPTY_WIDGET = {type = "empty-widget"}
 local JOIN_TEAM_BUTTON = {type = "button", style = "zk_action_button_dark", caption = "join"}
 local TITLEBAR_FLOW = {type = "flow", style = "flib_titlebar_flow"}
 local DRAG_HANDLER = {type = "empty-widget", style = "flib_dialog_footer_drag_handle"}
+local SEARCH_BUTTON = {
+	type = "sprite-button",
+	name = "ST_search",
+	style = "zk_action_button_dark",
+	sprite = "utility/search_white",
+	hovered_sprite = "utility/search_black",
+	clicked_sprite = "utility/search_black"
+}
 local CLOSE_BUTTON = {
 	hovered_sprite = "utility/close_black",
 	clicked_sprite = "utility/close_black",
@@ -393,12 +401,16 @@ local function show_team_gui(player)
 			flow.add{type = "button", name = "ST_kick_player", style = "zk_action_button_dark", caption = "kick"}
 		end
 
-		local flow2 = shallow_frame.add(FLOW)
-		flow2.add{type = "textfield", name = "ST_team_player"}
-		flow2.add{type = "button", name = "ST_promote", style = "zk_action_button_dark", caption = "Promote"}
-		flow2.add{type = "button", name = "ST_demote", style = "zk_action_button_dark", caption = "Demote"}
-		flow2.add{type = "button", name = "ST_invite", style = "zk_action_button_dark", caption = "Invite"}
-		flow2.add{type = "button", name = "ST_kick_player", style = "zk_action_button_dark", caption = "kick"}
+		local flow = shallow_frame.add(FLOW)
+		flow.add{type = "textfield", name = "ST_team_player"}
+		flow.add(SEARCH_BUTTON)
+
+		local flow = shallow_frame.add(FLOW)
+		flow.add{type = "drop-down", name = "ST_found_team_players"}
+		flow.add{type = "button", name = "ST_promote", style = "zk_action_button_dark", caption = "Promote"}
+		flow.add{type = "button", name = "ST_demote", style = "zk_action_button_dark", caption = "Demote"}
+		flow.add{type = "button", name = "ST_invite", style = "zk_action_button_dark", caption = "Invite"}
+		flow.add{type = "button", name = "ST_kick_player", style = "zk_action_button_dark", caption = "kick"}
 
 		local f_invite_requests = invite_requests[force_index]
 		if #f_invite_requests > 0 then
