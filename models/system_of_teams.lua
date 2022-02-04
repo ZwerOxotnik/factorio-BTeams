@@ -231,30 +231,34 @@ local function count_forces_researched()
 end
 
 local function make_teams_header(table)
-	local dummy
-	dummy = table.add(EMPTY_WIDGET)
-	dummy.style.horizontally_stretchable = true
-	dummy.style.minimal_width = 80
-	dummy = table.add(EMPTY_WIDGET)
-	dummy.style.horizontally_stretchable = true
-	dummy.style.minimal_width = 50
-	dummy = table.add(EMPTY_WIDGET)
-	dummy.style.horizontally_stretchable = true
-	dummy.style.minimal_width = 60
-	dummy = table.add(EMPTY_WIDGET)
-	dummy.style.horizontally_stretchable = true
-	dummy.style.minimal_width = 80
-	table.add(EMPTY_WIDGET)
+	local add = table.add
+	local style
+	style = add(EMPTY_WIDGET).style
+	style.horizontally_stretchable = true
+	style.minimal_width = 80
+	style = add(EMPTY_WIDGET).style
+	style.horizontally_stretchable = true
+	style.minimal_width = 50
+	style = add(EMPTY_WIDGET).style
+	style.horizontally_stretchable = true
+	style.minimal_width = 60
+	style = add(EMPTY_WIDGET).style
+	style.horizontally_stretchable = true
+	style.minimal_width = 80
+	add(EMPTY_WIDGET)
 
-	local label_data = {type = "label", caption = {"team-name"}}
-	table.add(label_data)
-	label_data.caption = "Players"
-	table.add(label_data)
+	local caption = {"team-name"}
+	local label_data = {type = "label", caption = caption}
+	add(label_data)
+	caption[1] = "gui-browse-games.players"
+	label_data.caption = caption
+	add(label_data)
 	label_data.caption = "Leaders"
-	table.add(label_data)
-	label_data.caption = "Researched"
-	table.add(label_data)
-	table.add(EMPTY_WIDGET)
+	add(label_data)
+	caption[1] = "gui-technology-preview.status-researched"
+	label_data.caption = caption
+	add(label_data)
+	add(EMPTY_WIDGET)
 end
 
 local function add_row_team(add, force, force_name, force_index, label_data)
@@ -355,21 +359,21 @@ local function show_team_gui(player)
 	local force_index = force.index
 	local force_name = force.name
 	local is_leader = (force.players[1] == player)
-	local flow = shallow_frame.add(FLOW)
-	flow.add(LABEL).caption = {'', "Team name", {"colon"}}
+	local flow1 = shallow_frame.add(FLOW)
+	flow1.add(LABEL).caption = {'', "Team name", {"colon"}}
 	if allow_rename_teams and is_leader then
-		flow.add{type = "textfield", name = "ST_force_name", text = force_name}
-		local button = flow.add{type = "button", name = "ST_rename_team", style = "zk_action_button_dark", caption = ">"}
+		flow1.add{type = "textfield", name = "ST_force_name", text = force_name}.style.width = 100
+		local button = flow1.add{type = "button", name = "ST_rename_team", style = "zk_action_button_dark", caption = ">"}
 		button.style.font = "default-dialog-button"
 		button.style.top_padding = -4
 		button.style.width = 30
 	else
-		local label = flow.add(LABEL)
+		local label = flow1.add(LABEL)
 		label.name = "ST_force_name"
 		label.caption = force_name
 	end
 	if allow_abandon_team then
-		local button = flow.add(JOIN_TEAM_BUTTON)
+		local button = flow1.add(JOIN_TEAM_BUTTON)
 		button.name = "ST_abandon_team"
 		button.caption = "abandon"
 		button.style.maximal_width = 0
@@ -378,40 +382,45 @@ local function show_team_gui(player)
 	if is_leader then
 		local f_connected_players = force.connected_players
 		if #f_connected_players > 1 then
-			local flow = shallow_frame.add(FLOW)
-			flow.add(LABEL).caption = {'', "Online players", {"colon"}}
+			local flow2 = shallow_frame.add(FLOW)
+			flow2.style.top_padding = 4
+			flow2.add(LABEL).caption = {'', {"command-output.player-list-online", #f_connected_players}, {"colon"}}
 
 			local items = {}
 			local size = 0
-			for _, o_player in pairs(force.connected_players) do
+			for i=1, #f_connected_players do
+				local o_player = f_connected_players[i]
 				if o_player.valid and o_player.index ~= player_index then
 					size = size + 1
 					items[size] = o_player.name
 				end
 			end
-			flow.add{type = "drop-down", name = "ST_online_team_players", items = items}
-			flow.add(LABEL).caption = {'', "Rank", {"colon"}}
-			flow.add(LABEL)
-			flow.add{type = "button",name = "ST_promote", style = "zk_action_button_dark", caption = "Promote"}.style.maximal_width = 0
-			flow.add{type = "button", name = "ST_demote", style = "zk_action_button_dark", caption = "Demote"}.style.maximal_width = 0
-			flow.add{type = "button", name = "ST_kick_player", style = "zk_action_button_dark", caption = "kick"}.style.maximal_width = 0
+			flow2.add{type = "drop-down", name = "ST_online_team_players", items = items}
+			flow2.add(LABEL).caption = {'', "Rank", {"colon"}}
+			flow2.add(LABEL)
+			flow2.add{type = "button", name = "ST_promote", style = "zk_action_button_dark", caption = {"gui-player-management.promote"}}.style.maximal_width = 0
+			flow2.add{type = "button", name = "ST_demote", style = "zk_action_button_dark", caption = {"gui-player-management.demote"}}.style.maximal_width = 0
+			flow2.add{type = "button", name = "ST_kick_player", style = "zk_action_button_dark", caption = {"gui-player-management.kick"}}.style.maximal_width = 0
 		end
 
-		local flow = shallow_frame.add(FLOW)
-		flow.add{type = "textfield", name = "ST_team_player"}
-		flow.add(SEARCH_BUTTON)
+		local flow3 = shallow_frame.add(FLOW)
+		flow3.style.top_padding = 4
+		flow3.add{type = "textfield", name = "ST_team_player"}.style.width = 171
+		flow3.add(SEARCH_BUTTON)
 
-		local flow = shallow_frame.add(FLOW)
-		flow.add{type = "drop-down", name = "ST_found_team_players"}
-		flow.add{type = "button", name = "ST_promote", style = "zk_action_button_dark", caption = "Promote"}.style.maximal_width = 0
-		flow.add{type = "button", name = "ST_demote", style = "zk_action_button_dark", caption = "Demote"}.style.maximal_width = 0
-		flow.add{type = "button", name = "ST_invite", style = "zk_action_button_dark", caption = "Invite"}.style.maximal_width = 0
-		flow.add{type = "button", name = "ST_kick_player", style = "zk_action_button_dark", caption = "kick"}.style.maximal_width = 0
+		local flow4 = shallow_frame.add(FLOW)
+		flow4.style.top_padding = 4
+		flow4.add{type = "drop-down", name = "ST_found_team_players"}
+		flow4.add{type = "button", name = "ST_promote", style = "zk_action_button_dark", caption = {"gui-player-management.promote"}}.style.maximal_width = 0
+		flow4.add{type = "button", name = "ST_demote", style = "zk_action_button_dark", caption = {"gui-player-management.demote"}}.style.maximal_width = 0
+		flow4.add{type = "button", name = "ST_invite", style = "zk_action_button_dark", caption = "Invite"}.style.maximal_width = 0
+		flow4.add{type = "button", name = "ST_kick_player", style = "zk_action_button_dark", caption = {"gui-player-management.kick"}}.style.maximal_width = 0
 
 		local f_invite_requests = invite_requests[force_index]
 		if #f_invite_requests > 0 then
-			local flow3 = shallow_frame.add(FLOW)
-			flow3.add(LABEL).caption = {'', "Invites (" .. #f_invite_requests  .. ')', {"colon"}}
+			local flow5 = shallow_frame.add(FLOW)
+			flow5.style.top_padding = 4
+			flow5.add(LABEL).caption = {'', "Invites (" .. #f_invite_requests  .. ')', {"colon"}}
 
 			local items = {}
 			local size = 0
@@ -422,11 +431,10 @@ local function show_team_gui(player)
 					items[size] = _player.name
 				end
 			end
-			flow3.add{type = "drop-down", name = "ST_invites", items = items}
-			flow3.add{type = "button", name = "ST_assign_leader", style = "zk_action_button_dark", caption = "accept"}
+			flow5.add{type = "drop-down", name = "ST_invites", items = items}
+			flow5.add{type = "button", name = "ST_assign_leader", style = "zk_action_button_dark", caption = "accept"}
 		end
 	end
-
 
 	main_frame.force_auto_center()
 end
