@@ -281,16 +281,16 @@ local function add_row_team(add, force, force_name, force_index, label_data)
 	end
 end
 
----@param table table #GUIelement
+---@param table_gui table #GUIelement
 ---@param player PlayerIdentification
 ---@param teams? table
-local function update_teams_table(table, player, teams)
-	table.clear()
-	make_teams_header(table)
+local function update_teams_table(table_gui, player, teams)
+	table_gui.clear()
+	make_teams_header(table_gui)
 	local p_force_index = player.force.index
 	local label_data = {type = "label"}
 	local forces = game.forces
-	local add = table.add
+	local add = table_gui.add
 	if show_all_forces then
 		local prohibit_forces = {
 			[player_force_index] = not allow_join_player_force or nil,
@@ -372,7 +372,7 @@ local function show_team_gui(player)
 		local button = flow.add(JOIN_TEAM_BUTTON)
 		button.name = "ST_abandon_team"
 		button.caption = "abandon"
-		button.style.horizontally_stretchable = true
+		button.style.maximal_width = 0
 	end
 
 	if is_leader then
@@ -392,9 +392,9 @@ local function show_team_gui(player)
 			flow.add{type = "drop-down", name = "ST_online_team_players", items = items}
 			flow.add(LABEL).caption = {'', "Rank", {"colon"}}
 			flow.add(LABEL)
-			flow.add{type = "button",name = "ST_promote", style = "zk_action_button_dark", caption = "Promote"}
-			flow.add{type = "button", name = "ST_demote", style = "zk_action_button_dark", caption = "Demote"}
-			flow.add{type = "button", name = "ST_kick_player", style = "zk_action_button_dark", caption = "kick"}
+			flow.add{type = "button",name = "ST_promote", style = "zk_action_button_dark", caption = "Promote"}.style.maximal_width = 0
+			flow.add{type = "button", name = "ST_demote", style = "zk_action_button_dark", caption = "Demote"}.style.maximal_width = 0
+			flow.add{type = "button", name = "ST_kick_player", style = "zk_action_button_dark", caption = "kick"}.style.maximal_width = 0
 		end
 
 		local flow = shallow_frame.add(FLOW)
@@ -403,10 +403,10 @@ local function show_team_gui(player)
 
 		local flow = shallow_frame.add(FLOW)
 		flow.add{type = "drop-down", name = "ST_found_team_players"}
-		flow.add{type = "button", name = "ST_promote", style = "zk_action_button_dark", caption = "Promote"}
-		flow.add{type = "button", name = "ST_demote", style = "zk_action_button_dark", caption = "Demote"}
-		flow.add{type = "button", name = "ST_invite", style = "zk_action_button_dark", caption = "Invite"}
-		flow.add{type = "button", name = "ST_kick_player", style = "zk_action_button_dark", caption = "kick"}
+		flow.add{type = "button", name = "ST_promote", style = "zk_action_button_dark", caption = "Promote"}.style.maximal_width = 0
+		flow.add{type = "button", name = "ST_demote", style = "zk_action_button_dark", caption = "Demote"}.style.maximal_width = 0
+		flow.add{type = "button", name = "ST_invite", style = "zk_action_button_dark", caption = "Invite"}.style.maximal_width = 0
+		flow.add{type = "button", name = "ST_kick_player", style = "zk_action_button_dark", caption = "kick"}.style.maximal_width = 0
 
 		local f_invite_requests = invite_requests[force_index]
 		if #f_invite_requests > 0 then
