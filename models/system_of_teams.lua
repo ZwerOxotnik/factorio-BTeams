@@ -13,10 +13,6 @@ local forces_researched
 ---@type table<number, table<number, number>>
 local players_ranks
 
---- {[force index] = {[1-10] = {}}}
----@type table<number, table<number, table>>
-local forces_ranks
-
 ---@type table<number, table<string, any>>
 local forces_permissions
 
@@ -326,7 +322,7 @@ local function update_teams_table(table, player, teams)
 end
 
 local function destroy_team_gui(player)
-	local ST_show_team_frame = player.gui.ST_show_team_frame
+	local ST_show_team_frame = player.gui.screen.ST_show_team_frame
 	if ST_show_team_frame then
 		ST_show_team_frame.destroy()
 		return
@@ -358,8 +354,7 @@ local function show_team_gui(player)
 	local player_index = player.index
 	local force_index = force.index
 	local force_name = force.name
-	local rank = players_ranks[force_index][player_index] or 1
-	local is_leader = (rank >= 9) -- TODO: recheck
+	local is_leader = (force.players[1] == player)
 	local flow = shallow_frame.add(FLOW)
 	flow.add(LABEL).caption = {'', "Team name", {"colon"}}
 	if allow_rename_teams and is_leader then
@@ -377,6 +372,7 @@ local function show_team_gui(player)
 		local button = flow.add(JOIN_TEAM_BUTTON)
 		button.name = "ST_abandon_team"
 		button.caption = "abandon"
+		button.style.horizontally_stretchable = true
 	end
 
 	if is_leader then
@@ -436,7 +432,7 @@ local function show_team_gui(player)
 end
 
 local function destroy_teams_frame(player)
-	local ST_teams_frame = player.gui.ST_teams_frame
+	local ST_teams_frame = player.gui.screen.ST_teams_frame
 	if ST_teams_frame then
 		ST_teams_frame.destroy()
 		return
@@ -520,6 +516,8 @@ end
 
 local function on_player_created(event)
 	local player = game.get_player(event.player_index)
+	if not (player and player.valid) then return end
+
 	create_left_relative_gui(player)
 end
 
@@ -537,8 +535,6 @@ local function on_forces_merged(event)
 	forces_permissions[index] = nil
 	forces_researched[index] = nil
 	invite_requests[index] = nil
-	players_ranks[index] = nil
-	forces_ranks[index] = nil
 end
 
 local EAPI_settings = {
@@ -653,7 +649,9 @@ local GUIS = {
 }
 local function on_gui_click(event)
 	local player = game.get_player(event.player_index)
+	if not (player and player.valid) then return end
 	local element = event.element
+	if not (element and element.valid) then return end
 	-- if element.get_mod() ~= "system_of_teams" then return end
 
 	if match(element.name, "^ST_") then
@@ -664,6 +662,8 @@ end
 
 local function on_force_created(event)
 	local force = event.force
+	if not (force and force.valid) then return end
+
 	local researched_count = 0
 	for _, tech in pairs(force.technologies) do
 		if tech.researched then
@@ -675,12 +675,16 @@ end
 
 local function on_player_joined_game(event)
 	local player = game.get_player(event.player_index)
+	if not (player and player.valid) then return end
+
 	destroy_team_gui(player)
 	destroy_teams_frame(player)
 end
 
 local function on_player_left_game(event)
 	local player = game.get_player(event.player_index)
+	if not (player and player.valid) then return end
+
 	destroy_team_gui(player)
 	destroy_teams_frame(player)
 end
@@ -688,7 +692,6 @@ end
 local function on_pre_player_removed(event)
 	local player_index = event.player_index
 	local force_index = game.get_player(event.player_index).force.index
-	players_ranks[force_index][player_index] = nil
 	-- TODO: delete invite in invite_requests etc
 end
 
@@ -696,16 +699,12 @@ local function on_new_team(event)
 	local index = event.force.index
 	forces_permissions[index] = {}
 	invite_requests[index] = {}
-	players_ranks[index] = {}
-	forces_ranks[index] = {}
 end
 
 local function on_pre_deleted_team(event)
 	local index = event.force.index
 	forces_permissions[index] = nil
 	invite_requests[index] = nil
-	players_ranks[index] = nil
-	forces_ranks[index] = nil
 end
 
 local function on_player_joined_team(event)
@@ -743,12 +742,6 @@ local function add_remote_interface()
 		end,
 		get_spawn_offset = function()
 			return mod_data.spawn_offset
-		end,
-		get_players_ranks = function()
-			return players_ranks
-		end,
-		get_forces_ranks = function()
-			return forces_ranks
 		end
 	})
 end
@@ -758,8 +751,6 @@ local function link_data()
 	forces_permissions = mod_data.forces_permissions
 	forces_researched = mod_data.forces_researched
 	invite_requests = mod_data.invite_requests
-	players_ranks = mod_data.players_ranks
-	forces_ranks = mod_data.forces_ranks
 	custom_EasyAPI_events = team_util.custom_events
 	void_surface_index = call("EasyAPI", "get_void_surface_index")
 	void_force_index = call("EasyAPI", "get_void_force_index")
@@ -772,8 +763,6 @@ local function update_global_data()
 	mod_data.spawn_offset = mod_data.spawn_offset or default_spawn_offset
 	mod_data.forces_permissions = mod_data.forces_permissions or {}
 	mod_data.invite_requests = mod_data.invite_requests or {}
-	mod_data.players_ranks = mod_data.players_ranks or {}
-	mod_data.forces_ranks = mod_data.forces_ranks or {}
 
 	link_data()
 
@@ -796,28 +785,9 @@ local function update_global_data()
 		end
 	end
 
-	for force_index in pairs(forces_ranks) do
-		if game.forces[force_index] == nil then
-			forces_ranks[force_index] = nil
-		end
-	end
-
 	for force_index in pairs(forces_permissions) do
 		if game.forces[force_index] == nil then
 			forces_permissions[force_index] = nil
-		end
-	end
-
-	for force_index, players_data in pairs(players_ranks) do
-		if game.forces[force_index] == nil then
-			players_ranks[force_index] = nil
-		else
-			for player_index in pairs(players_data) do
-				local player = game.get_player(player_index)
-				if not (player and player.valid) then
-					players_data[player_index] = nil
-				end
-			end
 		end
 	end
 
@@ -867,25 +837,12 @@ M.events = {
 	-- [defines.events.on_game_created_from_scenario] = on_game_created_from_scenario,
 	[defines.events.on_forces_merged] = on_forces_merged,
 	[defines.events.on_forces_merging] = on_forces_merging,
-	[defines.events.on_gui_click] = function(event)
-		on_gui_click(event)
-		-- pcall(on_gui_click, event)
-	end,
-	[defines.events.on_player_created] = function(event)
-		pcall(on_player_created, event)
-	end,
-	[defines.events.on_force_created] = function(event)
-		pcall(on_force_created, event)
-	end,
-	[defines.events.on_player_joined_game] = function(event)
-		pcall(on_player_joined_game, event)
-	end,
-	[defines.events.on_player_left_game] = function(event)
-		pcall(on_player_left_game, event)
-	end,
-	[defines.events.on_pre_player_removed] = function(event)
-		pcall(on_pre_player_removed, event)
-	end
+	[defines.events.on_gui_click] = on_gui_click,
+	[defines.events.on_player_created] = on_player_created,
+	[defines.events.on_force_created] = on_force_created,
+	[defines.events.on_player_joined_game] = on_player_joined_game,
+	[defines.events.on_player_left_game] = on_player_left_game,
+	-- [defines.events.on_pre_player_removed] = on_pre_player_removed
 }
 
 
