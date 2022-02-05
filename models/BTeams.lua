@@ -34,19 +34,18 @@ local custom_EasyAPI_events
 
 --#region Constants
 local call = remote.call
-local match = string.match
 local player_force_index = 1
 local enemy_force_index = 2
 local neutral_force_index = 3
 local LABEL = {type = "label"}
 local FLOW = {type = "flow"}
 local EMPTY_WIDGET = {type = "empty-widget"}
-local JOIN_TEAM_BUTTON = {type = "button", style = "zk_action_button_dark", caption = "join"}
+local JOIN_TEAM_BUTTON = {type = "button", style = "zk_action_button_dark", caption = {"gui-menu.continue-join-game-tooltip", ''}}
 local TITLEBAR_FLOW = {type = "flow", style = "flib_titlebar_flow"}
 local DRAG_HANDLER = {type = "empty-widget", style = "flib_dialog_footer_drag_handle"}
 local SEARCH_BUTTON = {
 	type = "sprite-button",
-	name = "ST_search",
+	name = "bt_search",
 	style = "zk_action_button_dark",
 	sprite = "utility/search_white",
 	hovered_sprite = "utility/search_black",
@@ -58,7 +57,7 @@ local CLOSE_BUTTON = {
 	sprite = "utility/close_white",
 	style = "frame_action_button",
 	type = "sprite-button",
-	name = "ST_close"
+	name = "bt_close"
 }
 --#endregion
 
@@ -68,40 +67,40 @@ local CLOSE_BUTTON = {
 local max_teams = settings.global["EAPI_max_teams"].value
 
 ---@type boolean
-local allow_random_team_spawn = settings.global["ST_allow_random_team_spawn"].value
+local allow_random_team_spawn = settings.global["bt_allow_random_team_spawn"].value
 
 ---@type boolean
-local allow_rename_teams = settings.global["ST_allow_rename_teams"].value
+local allow_rename_teams = settings.global["bt_allow_rename_teams"].value
 
 ---@type boolean
 local allow_create_team = settings.global["EAPI_allow_create_team"].value
 
 ---@type boolean
-local allow_abandon_team = settings.global["ST_allow_abandon_team"].value
+local allow_abandon_team = settings.global["bt_allow_abandon_team"].value
 
 ---@type boolean
-local allow_switch_team = settings.global["ST_allow_switch_team"].value
+local allow_switch_team = settings.global["bt_allow_switch_team"].value
 
 ---@type boolean
-local allow_bandits = settings.global["ST_allow_bandits"].value
+local allow_bandits = settings.global["bt_allow_bandits"].value
 
 ---@type boolean
-local allow_join_bandits_force = settings.global["ST_allow_join_bandits_force"].value
+local allow_join_bandits_force = settings.global["bt_allow_join_bandits_force"].value
 
 ---@type boolean
-local allow_join_player_force = settings.global["ST_allow_join_player_force"].value
+local allow_join_player_force = settings.global["bt_allow_join_player_force"].value
 
 ---@type boolean
-local allow_join_enemy_force = settings.global["ST_allow_join_enemy_force"].value
+local allow_join_enemy_force = settings.global["bt_allow_join_enemy_force"].value
 
 ---@type boolean
-local show_all_forces = settings.global["ST_show_all_forces"].value
+local show_all_forces = settings.global["bt_show_all_forces"].value
 
 ---@type string
-local default_surface = settings.global["ST_default_surface"].value
+local default_surface = settings.global["bt_default_surface"].value
 
 ---@type number
-local default_spawn_offset = settings.global["ST_default_spawn_offset"].value
+local default_spawn_offset = settings.global["bt_default_spawn_offset"].value
 --#endregion
 
 
@@ -175,7 +174,7 @@ local SPAWN_METHODS = {
 			or c_pos({-d, x})
 	end
 }
-local spawn_method = SPAWN_METHODS[settings.global["ST_spawn_method"].value]
+local spawn_method = SPAWN_METHODS[settings.global["bt_spawn_method"].value]
 
 ---@param player PlayerIdentification
 ---@return SurfaceIdentification #SurfaceIdentification
@@ -211,7 +210,7 @@ local function get_team_spawn_position(surface)
 			spawn_offset = spawn_offset + default_spawn_offset
 		end
 	end
-	surface.request_to_generate_chunks(position, 2)
+	surface.requebt_to_generate_chunks(position, 2)
 	position = surface.find_non_colliding_position("character", position, 100, 5)
 	mod_data.spawn_offset = spawn_offset
 	return position
@@ -227,7 +226,7 @@ local function count_forces_researched()
 		end
 		forces_researched[force.index] = researched_count
 	end
-	mod_data.last_check_researched_tick = game.tick
+	mod_data.labt_check_researched_tick = game.tick
 end
 
 local function make_teams_header(table)
@@ -279,7 +278,7 @@ local function add_row_team(add, force, force_name, force_index, label_data)
 	if allow_switch_team then
 		local sub = add(FLOW)
 		sub.name = force_name
-		sub.add(JOIN_TEAM_BUTTON).name = "ST_join_team"
+		sub.add(JOIN_TEAM_BUTTON).name = "bt_join_team"
 	else
 		add(EMPTY_WIDGET)
 	end
@@ -326,22 +325,22 @@ local function update_teams_table(table_gui, player, teams)
 end
 
 local function destroy_team_gui(player)
-	local ST_show_team_frame = player.gui.screen.ST_show_team_frame
-	if ST_show_team_frame then
-		ST_show_team_frame.destroy()
+	local bt_show_team_frame = player.gui.screen.bt_show_team_frame
+	if bt_show_team_frame then
+		bt_show_team_frame.destroy()
 		return
 	end
 end
 
 -- TODO: change (it's too raw etc)
-local function show_team_gui(player)
+local function switch_team_gui(player)
 	local screen = player.gui.screen
-	if screen.ST_show_team_frame then
-		screen.ST_show_team_frame.destroy()
+	if screen.bt_show_team_frame then
+		screen.bt_show_team_frame.destroy()
 		return
 	end
 
-	local main_frame = screen.add{type = "frame", name = "ST_show_team_frame", direction = "vertical"}
+	local main_frame = screen.add{type = "frame", name = "bt_show_team_frame", direction = "vertical"}
 	local top_flow = main_frame.add(TITLEBAR_FLOW)
 	top_flow.add{type = "label",
 		style = "frame_title",
@@ -362,19 +361,19 @@ local function show_team_gui(player)
 	local flow1 = shallow_frame.add(FLOW)
 	flow1.add(LABEL).caption = {'', "Team name", {"colon"}}
 	if allow_rename_teams and is_leader then
-		flow1.add{type = "textfield", name = "ST_force_name", text = force_name}.style.width = 100
-		local button = flow1.add{type = "button", name = "ST_rename_team", style = "zk_action_button_dark", caption = ">"}
+		flow1.add{type = "textfield", name = "bt_force_name", text = force_name}.style.width = 100
+		local button = flow1.add{type = "button", name = "bt_rename_team", style = "zk_action_button_dark", caption = ">"}
 		button.style.font = "default-dialog-button"
 		button.style.top_padding = -4
 		button.style.width = 30
 	else
 		local label = flow1.add(LABEL)
-		label.name = "ST_force_name"
+		label.name = "bt_force_name"
 		label.caption = force_name
 	end
 	if allow_abandon_team then
 		local button = flow1.add(JOIN_TEAM_BUTTON)
-		button.name = "ST_abandon_team"
+		button.name = "bt_abandon_team"
 		button.caption = "abandon"
 		button.style.maximal_width = 0
 	end
@@ -395,26 +394,26 @@ local function show_team_gui(player)
 					items[size] = o_player.name
 				end
 			end
-			flow2.add{type = "drop-down", name = "ST_online_team_players", items = items}
+			flow2.add{type = "drop-down", name = "bt_online_team_players", items = items}
 			flow2.add(LABEL).caption = {'', "Rank", {"colon"}}
 			flow2.add(LABEL)
-			flow2.add{type = "button", name = "ST_promote", style = "zk_action_button_dark", caption = {"gui-player-management.promote"}}.style.maximal_width = 0
-			flow2.add{type = "button", name = "ST_demote", style = "zk_action_button_dark", caption = {"gui-player-management.demote"}}.style.maximal_width = 0
-			flow2.add{type = "button", name = "ST_kick_player", style = "zk_action_button_dark", caption = {"gui-player-management.kick"}}.style.maximal_width = 0
+			flow2.add{type = "button", name = "bt_promote", style = "zk_action_button_dark", caption = {"gui-player-management.promote"}}.style.maximal_width = 0
+			flow2.add{type = "button", name = "bt_demote", style = "zk_action_button_dark", caption = {"gui-player-management.demote"}}.style.maximal_width = 0
+			flow2.add{type = "button", name = "bt_kick_player", style = "zk_action_button_dark", caption = {"gui-player-management.kick"}}.style.maximal_width = 0
 		end
 
 		local flow3 = shallow_frame.add(FLOW)
 		flow3.style.top_padding = 4
-		flow3.add{type = "textfield", name = "ST_team_player"}.style.width = 171
+		flow3.add{type = "textfield", name = "bt_team_player"}.style.width = 171
 		flow3.add(SEARCH_BUTTON)
 
 		local flow4 = shallow_frame.add(FLOW)
 		flow4.style.top_padding = 4
-		flow4.add{type = "drop-down", name = "ST_found_team_players"}
-		flow4.add{type = "button", name = "ST_promote", style = "zk_action_button_dark", caption = {"gui-player-management.promote"}}.style.maximal_width = 0
-		flow4.add{type = "button", name = "ST_demote", style = "zk_action_button_dark", caption = {"gui-player-management.demote"}}.style.maximal_width = 0
-		flow4.add{type = "button", name = "ST_invite", style = "zk_action_button_dark", caption = "Invite"}.style.maximal_width = 0
-		flow4.add{type = "button", name = "ST_kick_player", style = "zk_action_button_dark", caption = {"gui-player-management.kick"}}.style.maximal_width = 0
+		flow4.add{type = "drop-down", name = "bt_found_team_players"}
+		flow4.add{type = "button", name = "bt_promote", style = "zk_action_button_dark", caption = {"gui-player-management.promote"}}.style.maximal_width = 0
+		flow4.add{type = "button", name = "bt_demote", style = "zk_action_button_dark", caption = {"gui-player-management.demote"}}.style.maximal_width = 0
+		flow4.add{type = "button", name = "bt_invite", style = "zk_action_button_dark", caption = "Invite"}.style.maximal_width = 0
+		flow4.add{type = "button", name = "bt_kick_player", style = "zk_action_button_dark", caption = {"gui-player-management.kick"}}.style.maximal_width = 0
 
 		local f_invite_requests = invite_requests[force_index]
 		if #f_invite_requests > 0 then
@@ -431,8 +430,8 @@ local function show_team_gui(player)
 					items[size] = _player.name
 				end
 			end
-			flow5.add{type = "drop-down", name = "ST_invites", items = items}
-			flow5.add{type = "button", name = "ST_assign_leader", style = "zk_action_button_dark", caption = "accept"}
+			flow5.add{type = "drop-down", name = "bt_invites", items = items}
+			flow5.add{type = "button", name = "bt_assign_leader", style = "zk_action_button_dark", caption = "accept"}
 		end
 	end
 
@@ -440,21 +439,21 @@ local function show_team_gui(player)
 end
 
 local function destroy_teams_frame(player)
-	local ST_teams_frame = player.gui.screen.ST_teams_frame
-	if ST_teams_frame then
-		ST_teams_frame.destroy()
+	local bt_teams_frame = player.gui.screen.bt_teams_frame
+	if bt_teams_frame then
+		bt_teams_frame.destroy()
 		return
 	end
 end
 
-local function create_teams_gui(player)
+local function switch_teams_gui(player)
 	local screen = player.gui.screen
-	if screen.ST_teams_frame then
-		screen.ST_teams_frame.destroy()
+	if screen.bt_teams_frame then
+		screen.bt_teams_frame.destroy()
 		return
 	end
 
-	local main_frame = screen.add{type = "frame", name = "ST_teams_frame", direction = "vertical"}
+	local main_frame = screen.add{type = "frame", name = "bt_teams_frame", direction = "vertical"}
 	local top_flow = main_frame.add(TITLEBAR_FLOW)
 	top_flow.add{type = "label",
 		style = "frame_title",
@@ -464,7 +463,7 @@ local function create_teams_gui(player)
 	top_flow.add(DRAG_HANDLER).drag_target = main_frame
 	top_flow.add{
 		type = "sprite-button",
-		name = "ST_refresh_teams_table",
+		name = "bt_refresh_teams_table",
 		style = "frame_action_button",
 		sprite = "refresh_white_icon"
 	}
@@ -478,7 +477,7 @@ local function create_teams_gui(player)
 		local create_team_flow = shallow_frame.add{type = "flow"}
 		create_team_flow.add{type = "label", caption = {'', "Create team", {"colon"}}}
 		create_team_flow.add{type = "textfield", name = "team_name"}
-		local button = create_team_flow.add{type = "button", name = "ST_create_team", style = "zk_action_button_dark", caption = ">"}
+		local button = create_team_flow.add{type = "button", name = "bt_create_team", style = "zk_action_button_dark", caption = ">"}
 		button.style.font = "default-dialog-button"
 		button.style.top_padding = -4
 		button.style.width = 30
@@ -495,7 +494,7 @@ local function create_teams_gui(player)
 	teams_table.draw_vertical_lines = true
 	teams_table.style.top_margin = -3
 
-	if mod_data.last_check_researched_tick > game.tick + 36000 then
+	if mod_data.labt_check_researched_tick > game.tick + 36000 then
 		count_forces_researched()
 	end
 	update_teams_table(teams_table, player, teams)
@@ -506,15 +505,15 @@ end
 local left_anchor = {gui = defines.relative_gui_type.controller_gui, position = defines.relative_gui_position.left}
 local function create_left_relative_gui(player)
 	local relative = player.gui.relative
-	if relative.ST_buttons then
-		relative.ST_buttons.destroy()
+	if relative.bt_buttons then
+		relative.bt_buttons.destroy()
 	end
-	local main_table = relative.add{type = "table", name = "ST_buttons", anchor = left_anchor, column_count = 2}
+	local main_table = relative.add{type = "table", name = "bt_buttons", anchor = left_anchor, column_count = 2}
 	-- main_table.style.vertical_align = "center"
 	main_table.style.horizontal_spacing = 0
 	main_table.style.vertical_spacing = 0
-	main_table.add{type = "sprite-button", sprite = "ST_customize_team", style="slot_button", name = "ST_customize_team"}
-	main_table.add{type = "sprite-button", sprite = "ST_teams", style="slot_button", name = "ST_teams"}
+	main_table.add{type = "sprite-button", sprite = "bt_customize_team", style="slot_button", name = "bt_customize_team"}
+	main_table.add{type = "sprite-button", sprite = "bt_teams", style="slot_button", name = "bt_teams"}
 end
 
 --#endregion
@@ -545,16 +544,14 @@ local function on_forces_merged(event)
 	invite_requests[index] = nil
 end
 
-local EAPI_settings = {
-	["EAPI_allow_create_team"] = function(value) allow_create_team = value end,
-	["EAPI_max_teams"] = function(value) max_teams = value end
-}
 local mod_settings = {
-	["ST_allow_random_team_spawn"] = function(value) allow_random_team_spawn = value end,
-	["ST_allow_abandon_team"] = function(value) allow_abandon_team = value end,
-	["ST_allow_rename_teams"] = function(value) allow_rename_teams = value end,
-	["ST_allow_switch_team"] = function(value) allow_switch_team = value end,
-	["ST_allow_bandits"] = function(value)
+	["EAPI_allow_create_team"] = function(value) allow_create_team = value end,
+	["EAPI_max_teams"] = function(value) max_teams = value end,
+	["bt_allow_random_team_spawn"] = function(value) allow_random_team_spawn = value end,
+	["bt_allow_abandon_team"] = function(value) allow_abandon_team = value end,
+	["bt_allow_rename_teams"] = function(value) allow_rename_teams = value end,
+	["bt_allow_switch_team"] = function(value) allow_switch_team = value end,
+	["bt_allow_bandits"] = function(value)
 		allow_bandits = value
 		if allow_bandits then
 			if game.forces.bandits == nil then
@@ -562,50 +559,45 @@ local mod_settings = {
 			end
 		end
 	end,
-	["ST_allow_join_bandits_force"] = function(value) allow_join_bandits_force = value end,
-	["ST_allow_join_player_force"] = function(value) allow_join_player_force = value end,
-	["ST_allow_join_enemy_force"] = function(value) allow_join_enemy_force = value end,
-	["ST_show_all_forces"] = function(value) show_all_forces = value end,
-	["ST_default_surface"] = function(value) default_surface = value end,
-	["ST_default_spawn_offset"] = function(value)
+	["bt_allow_join_bandits_force"] = function(value) allow_join_bandits_force = value end,
+	["bt_allow_join_player_force"] = function(value) allow_join_player_force = value end,
+	["bt_allow_join_enemy_force"] = function(value) allow_join_enemy_force = value end,
+	["bt_show_all_forces"] = function(value) show_all_forces = value end,
+	["bt_default_surface"] = function(value) default_surface = value end,
+	["bt_default_spawn_offset"] = function(value)
 		default_spawn_offset = value
 		mod_data.spawn_offset = math.floor(mod_data.spawn_offset/value) * value
 	end,
-	["ST_spawn_method"] = function(value) spawn_method = SPAWN_METHODS[value] end
+	["bt_spawn_method"] = function(value) spawn_method = SPAWN_METHODS[value] end
 }
 local function on_runtime_mod_setting_changed(event)
 	-- if event.setting_type ~= "runtime-global" then return end
 	local setting_name = event.setting
-	if match(setting_name, "^ST_") then
-		local f = mod_settings[setting_name]
-		if f then f(settings.global[setting_name].value) end
-	elseif match(setting_name, "^EAPI_") then
-		local f = EAPI_settings[setting_name]
-		if f then f(settings.global[setting_name].value) end
-	end
+	local f = mod_settings[setting_name]
+	if f then f(settings.global[setting_name].value) end
 end
 
 local GUIS = {
-	ST_close = function(element)
+	bt_close = function(element)
 		element.parent.parent.destroy()
 	end,
-	ST_customize_team = function(element, player)
+	bt_customize_team = function(element, player)
 		local force_index = player.force.index
 		if forces_permissions[force_index] == nil then
 			player.print("This force doesn't support this action")
 			return
 		end
-		show_team_gui(player)
+		switch_team_gui(player)
 	end,
-	ST_teams = function(element, player)
-		create_teams_gui(player)
+	bt_teams = function(element, player)
+		switch_teams_gui(player)
 	end,
-	ST_refresh_teams_table = function(element, player)
+	bt_refresh_teams_table = function(element, player)
 		update_teams_table(element.parent.parent.shallow_frame.table_frame.teams_table, player)
 	end,
-	ST_create_team = function(element, player)
+	bt_create_team = function(element, player)
 		if not allow_create_team then
-			player.print("ERROR-1")
+			player.print({"error.error-message-box-title"})
 			return
 		end
 
@@ -636,15 +628,15 @@ local GUIS = {
 			new_team.set_spawn_position(position, surface)
 		end
 	end,
-	ST_abandon_team = function(element, player)
+	bt_abandon_team = function(element, player)
 		player.force = "void"
 		player.teleport({player.index * 150, 0}, game.get_surface(void_surface_index))
-		player.gui.screen.ST_show_team_frame.destroy()
+		player.gui.screen.bt_show_team_frame.destroy()
 	end,
-	ST_join_team = function(element, player)
+	bt_join_team = function(element, player)
 		local force = game.forces[element.parent.name]
 		if not (force and force.valid) then
-			player.print("ERROR")
+			player.print({"error.error-message-box-title"})
 			return
 		end
 
@@ -652,20 +644,18 @@ local GUIS = {
 		local surface = get_team_game_surface(player)
 		local position = force.get_spawn_position(surface)
 		player.teleport(position, surface)
-		player.gui.screen.ST_teams_frame.destroy() -- TODO: change
+		player.gui.screen.bt_teams_frame.destroy() -- TODO: change
 	end
 }
 local function on_gui_click(event)
-	local player = game.get_player(event.player_index)
-	if not (player and player.valid) then return end
 	local element = event.element
 	if not (element and element.valid) then return end
+	local player = game.get_player(event.player_index)
+	if not (player and player.valid) then return end
 	-- if element.get_mod() ~= "system_of_teams" then return end
 
-	if match(element.name, "^ST_") then
-		local f = GUIS[element.name]
-		if f then f(element, player) end
-	end
+	local f = GUIS[element.name]
+	if f then f(element, player) end
 end
 
 local function on_force_created(event)
@@ -785,7 +775,7 @@ local function update_global_data()
 	for _, player in pairs(game.players) do
 		if player.valid then
 			local relative = player.gui.relative
-			if relative.ST_buttons == nil then
+			if relative.bt_buttons == nil then
 				create_left_relative_gui(player)
 			end
 			destroy_teams_frame(player)
@@ -851,6 +841,16 @@ M.events = {
 	[defines.events.on_player_joined_game] = on_player_joined_game,
 	[defines.events.on_player_left_game] = on_player_left_game,
 	-- [defines.events.on_pre_player_removed] = on_pre_player_removed
+}
+
+
+M.commands = {
+	open_team_gui = function(cmd)
+		switch_team_gui(game.get_player(cmd.player_index))
+	end,
+	open_teams_gui = function(cmd)
+		switch_teams_gui(game.get_player(cmd.player_index))
+	end
 }
 
 
