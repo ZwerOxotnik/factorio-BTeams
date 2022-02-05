@@ -8,8 +8,8 @@ local M = {}
 local all_commands = {} -- commands from other modules
 
 local MAX_INPUT_LENGTH = 500 -- set any number
-local CONST_COMMANDS = require("__system_of_teams__/const-commands")
-local SWITCHABLE_COMMANDS = require("__system_of_teams__/switchable-commands")
+local CONST_COMMANDS = require("__BTeams__/const-commands")
+local SWITCHABLE_COMMANDS = require("__BTeams__/switchable-commands")
 
 
 local find = string.find
