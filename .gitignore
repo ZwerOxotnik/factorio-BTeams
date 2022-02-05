@@ -193,3 +193,6 @@ Manifest.toml
 
 # Output of .scripts/spawn_points/*.jl
 *.jpeg
+
+# lua2p debug files
+*.meta.lua
