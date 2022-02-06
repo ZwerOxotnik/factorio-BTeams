@@ -6,6 +6,8 @@ local team_util = require("__EasyAPI__/models/team_util")
 --#region Global data
 ---@type table<string, any>
 local mod_data
+
+--- {[force index] = count of researched techs}}
 ---@type table<number, number>
 local forces_researched
 
@@ -105,6 +107,32 @@ local default_spawn_offset = settings.global["bt_default_spawn_offset"].value
 
 
 --#region utils
+
+--- WIP
+local function create_invites_GUI(player)
+	local screen = player.gui.screen
+	if screen.bt_invites then
+		return
+	end
+
+	local main_frame = screen.add{type = "frame", name = "bt_invites", style = "bt_invites_frame", direction = "vertical"}
+	local top_flow = main_frame.add(TITLEBAR_FLOW)
+	top_flow.add{
+		type = "label",
+		style = "frame_title",
+		caption = "Invites",
+		ignored_by_interaction = true
+	}
+	top_flow.add(DRAG_HANDLER).drag_target = main_frame
+
+	local table_gui = main_frame.add{type = "table", column_count = 3}
+	table_gui.add({type = "flow"}).add(LABEL).caption = "test1"
+	table_gui.add(EMPTY_WIDGET)
+	table_gui.add(EMPTY_WIDGET)
+	table_gui.add({type = "flow"}).add(LABEL).caption = "test2"
+	table_gui.add(EMPTY_WIDGET)
+	table_gui.add(EMPTY_WIDGET)
+end
 
 ---@type table<string, function>
 local SPAWN_METHODS = {
@@ -210,7 +238,7 @@ local function get_team_spawn_position(surface)
 			spawn_offset = spawn_offset + default_spawn_offset
 		end
 	end
-	surface.requebt_to_generate_chunks(position, 2)
+	surface.request_to_generate_chunks(position, 2)
 	position = surface.find_non_colliding_position("character", position, 100, 5)
 	mod_data.spawn_offset = spawn_offset
 	return position
@@ -342,7 +370,8 @@ local function switch_team_gui(player)
 
 	local main_frame = screen.add{type = "frame", name = "bt_show_team_frame", direction = "vertical"}
 	local top_flow = main_frame.add(TITLEBAR_FLOW)
-	top_flow.add{type = "label",
+	top_flow.add{
+		type = "label",
 		style = "frame_title",
 		caption = "Your team",
 		ignored_by_interaction = true
@@ -529,7 +558,9 @@ local function on_player_created(event)
 end
 
 local function on_forces_merging(event)
-	for _, player in pairs(event.source.connected_players) do
+	local connected_players = event.source.connected_players
+	for i=1, #connected_players do
+		local player = connected_players[i]
 		if player.valid then
 			destroy_team_gui(player)
 			destroy_teams_frame(player)
@@ -554,6 +585,7 @@ local mod_settings = {
 	["bt_allow_bandits"] = function(value)
 		allow_bandits = value
 		if allow_bandits then
+			-- TODO: improve (in some it can't be created)
 			if game.forces.bandits == nil then
 				mod_data.bandits_force_index = game.create_force("bandits").index
 			end
@@ -652,7 +684,7 @@ local function on_gui_click(event)
 	if not (element and element.valid) then return end
 	local player = game.get_player(event.player_index)
 	if not (player and player.valid) then return end
-	-- if element.get_mod() ~= "BTeams" then return end
+	-- if element.get_mod() ~= "system_of_teams" then return end
 
 	local f = GUIS[element.name]
 	if f then f(element, player) end
@@ -730,8 +762,8 @@ end
 
 local function add_remote_interface()
 	-- https://lua-api.factorio.com/latest/LuaRemote.html
-	remote.remove_interface("BTeams") -- For safety
-	remote.add_interface("BTeams", {
+	remote.remove_interface("system_of_teams") -- For safety
+	remote.add_interface("system_of_teams", {
 		get_mod_data = function()
 			return mod_data
 		end,
