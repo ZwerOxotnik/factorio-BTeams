@@ -1,5 +1,3 @@
-require("prototypes/style")
-
 data:extend{
 	{
 		type = "sprite", name = "bt_customize_team",

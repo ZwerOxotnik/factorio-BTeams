@@ -17,5 +17,7 @@ Returns tables of commands without functions as command "settings". All paramete
 ---@type table<string, table>
 return {
 	open_team_gui = {name = "open-team-gui"},
-	open_teams_gui = {name = "open-teams-gui"}
+	open_teams_gui = {name = "open-teams-gui"},
+	accept_team_invite = {name = "accept-team-invite"},
+	show_team_invites = {name = "show-team-invites"},
 }

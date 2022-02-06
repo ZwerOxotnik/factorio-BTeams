@@ -1,4 +1,4 @@
----@class ST : module
+---@class BT : module
 local M = {}
 
 local team_util = require("__EasyAPI__/models/team_util")
@@ -11,16 +11,20 @@ local mod_data
 ---@type table<number, number>
 local forces_researched
 
---- {[force index] = {[player index] = number}}
----@type table<number, table<number, number>>
-local players_ranks
-
 ---@type table<number, table<string, any>>
 local forces_permissions
 
 --- {force index = {[player index] = tick}}
 ---@type table<number, table<number, number>>
-local invite_requests
+local force_invite_requests
+
+---TODO: add events
+---@class player_invite_requests
+---@type table<number, any>
+---@field [1] number # Invite id
+---@field [2] LuaPlayer
+---@field [3] number # Tick of inviting
+local player_invite_requests
 
 ---@type number
 local void_surface_index
@@ -107,32 +111,6 @@ local default_spawn_offset = settings.global["bt_default_spawn_offset"].value
 
 
 --#region utils
-
---- WIP
-local function create_invites_GUI(player)
-	local screen = player.gui.screen
-	if screen.bt_invites then
-		return
-	end
-
-	local main_frame = screen.add{type = "frame", name = "bt_invites", style = "bt_invites_frame", direction = "vertical"}
-	local top_flow = main_frame.add(TITLEBAR_FLOW)
-	top_flow.add{
-		type = "label",
-		style = "frame_title",
-		caption = "Invites",
-		ignored_by_interaction = true
-	}
-	top_flow.add(DRAG_HANDLER).drag_target = main_frame
-
-	local table_gui = main_frame.add{type = "table", column_count = 3}
-	table_gui.add({type = "flow"}).add(LABEL).caption = "test1"
-	table_gui.add(EMPTY_WIDGET)
-	table_gui.add(EMPTY_WIDGET)
-	table_gui.add({type = "flow"}).add(LABEL).caption = "test2"
-	table_gui.add(EMPTY_WIDGET)
-	table_gui.add(EMPTY_WIDGET)
-end
 
 ---@type table<string, function>
 local SPAWN_METHODS = {
@@ -444,7 +422,7 @@ local function switch_team_gui(player)
 		flow4.add{type = "button", name = "bt_invite", style = "zk_action_button_dark", caption = "Invite"}.style.maximal_width = 0
 		flow4.add{type = "button", name = "bt_kick_player", style = "zk_action_button_dark", caption = {"gui-player-management.kick"}}.style.maximal_width = 0
 
-		local f_invite_requests = invite_requests[force_index]
+		local f_invite_requests = force_invite_requests[force_index]
 		if #f_invite_requests > 0 then
 			local flow5 = shallow_frame.add(FLOW)
 			flow5.style.top_padding = 4
@@ -452,7 +430,7 @@ local function switch_team_gui(player)
 
 			local items = {}
 			local size = 0
-			for _player_index in pairs(invite_requests[force_index]) do
+			for _player_index in pairs(force_invite_requests[force_index]) do
 				local _player = game.get_player(_player_index)
 				if player.valid then
 					size = size + 1
@@ -572,7 +550,7 @@ local function on_forces_merged(event)
 	local index = event.source_index
 	forces_permissions[index] = nil
 	forces_researched[index] = nil
-	invite_requests[index] = nil
+	force_invite_requests[index] = nil
 end
 
 local mod_settings = {
@@ -612,6 +590,38 @@ end
 local GUIS = {
 	bt_close = function(element)
 		element.parent.parent.destroy()
+	end,
+	bt_invite = function(element, player)
+		local drop_down = element.parent.bt_found_team_players
+		local player_name = drop_down.items[drop_down.selected_index]
+		local target = game.get_player(player_name)
+		if not (target and target.index) then
+			player.print({"error.error-message-box-title"})
+			return
+		end
+
+		local player_force = player.force
+		if player_force == target.force then
+			--TODO: change
+			player.print({"error.error-message-box-title"})
+			return
+		end
+		local target_invites = player_invite_requests[target.index]
+		local invite = target_invites[player_force.index]
+		if invite == nil then
+			mod_data.last_invite_id = mod_data.last_invite_id + 1
+			target_invites[player_force.index] = {
+				mod_data.last_invite_id,
+				player,
+				game.tick
+			}
+		elseif invite[2] == player then
+			invite[3] = game.tick
+			return
+		end
+		if target.connected then
+			target.print("Player \"" .. player.name .. "\" invited you in team \"" .. player_force.name .. "\"")
+		end
 	end,
 	bt_customize_team = function(element, player)
 		local force_index = player.force.index
@@ -654,8 +664,9 @@ local GUIS = {
 		if position then
 			player.teleport(position, surface)
 			local DESTROY_TYPE = {raise_destroy = true}
-			for _, entity in pairs(surface.find_enemy_units(position, 200, new_team)) do
-				entity.destroy(DESTROY_TYPE)
+			local enemy_units = surface.find_enemy_units(position, 200, new_team)
+			for i=#enemy_units, 1, -1 do
+				enemy_units[i].destroy(DESTROY_TYPE)
 			end
 			new_team.set_spawn_position(position, surface)
 		end
@@ -684,7 +695,6 @@ local function on_gui_click(event)
 	if not (element and element.valid) then return end
 	local player = game.get_player(event.player_index)
 	if not (player and player.valid) then return end
-	-- if element.get_mod() ~= "system_of_teams" then return end
 
 	local f = GUIS[element.name]
 	if f then f(element, player) end
@@ -719,8 +729,11 @@ local function on_player_left_game(event)
 	destroy_teams_frame(player)
 end
 
+local function on_player_removed(event)
+	player_invite_requests[event.player_index] = nil
+end
+
 local function on_pre_player_removed(event)
-	local player_index = event.player_index
 	local force_index = game.get_player(event.player_index).force.index
 	-- TODO: delete invite in invite_requests etc
 end
@@ -728,23 +741,13 @@ end
 local function on_new_team(event)
 	local index = event.force.index
 	forces_permissions[index] = {}
-	invite_requests[index] = {}
+	force_invite_requests[index] = {}
 end
 
 local function on_pre_deleted_team(event)
 	local index = event.force.index
 	forces_permissions[index] = nil
-	invite_requests[index] = nil
-end
-
-local function on_player_joined_team(event)
-	if #event.force.players == 1 then
-		local force_index = event.force.index
-		if mod_data.bandits_force_index and force_index == mod_data.bandits_force_index then
-			return
-		end
-		players_ranks[force_index] = {[event.player_index] = 10}
-	end
+	force_invite_requests[index] = nil
 end
 
 --#endregion
@@ -780,7 +783,8 @@ local function link_data()
 	mod_data = global.ST
 	forces_permissions = mod_data.forces_permissions
 	forces_researched = mod_data.forces_researched
-	invite_requests = mod_data.invite_requests
+	player_invite_requests = mod_data.player_invite_requests
+	force_invite_requests = mod_data.force_invite_requests
 	custom_EasyAPI_events = team_util.custom_events
 	void_surface_index = call("EasyAPI", "get_void_surface_index")
 	void_force_index = call("EasyAPI", "get_void_force_index")
@@ -792,7 +796,9 @@ local function update_global_data()
 	mod_data.forces_researched = {}
 	mod_data.spawn_offset = mod_data.spawn_offset or default_spawn_offset
 	mod_data.forces_permissions = mod_data.forces_permissions or {}
-	mod_data.invite_requests = mod_data.invite_requests or {}
+	mod_data.last_invite_id = mod_data.last_invite_id or 0
+	mod_data.player_invite_requests = mod_data.player_invite_requests or {}
+	mod_data.force_invite_requests = mod_data.force_invite_requests or {}
 
 	link_data()
 
@@ -806,6 +812,8 @@ local function update_global_data()
 
 	for _, player in pairs(game.players) do
 		if player.valid then
+			player_invite_requests[player.index] = player_invite_requests[player.index] or {}
+
 			local relative = player.gui.relative
 			if relative.bt_buttons == nil then
 				create_left_relative_gui(player)
@@ -821,9 +829,9 @@ local function update_global_data()
 		end
 	end
 
-	for force_index, players_data in pairs(invite_requests) do
+	for force_index, players_data in pairs(force_invite_requests) do
 		if game.forces[force_index] == nil then
-			invite_requests[force_index] = nil
+			force_invite_requests[force_index] = nil
 		else
 			for player_index in pairs(players_data) do
 				local player = game.get_player(player_index)
@@ -838,7 +846,7 @@ end
 local function handle_custom_events()
 	script.on_event(custom_EasyAPI_events.on_new_team, on_new_team)
 	script.on_event(custom_EasyAPI_events.on_pre_deleted_team, on_pre_deleted_team)
-	script.on_event(custom_EasyAPI_events.on_player_joined_team, on_player_joined_team)
+	-- script.on_event(custom_EasyAPI_events.on_player_joined_team, on_player_joined_team)
 	-- script.on_event(custom_EasyAPI_events.on_player_left_team, on_player_left_team)
 	-- custom_events.on_team_invited
 	-- custom_events.on_player_accepted_invite
@@ -872,6 +880,7 @@ M.events = {
 	[defines.events.on_force_created] = on_force_created,
 	[defines.events.on_player_joined_game] = on_player_joined_game,
 	[defines.events.on_player_left_game] = on_player_left_game,
+	[defines.events.on_player_removed] = on_player_removed,
 	-- [defines.events.on_pre_player_removed] = on_pre_player_removed
 }
 
@@ -882,7 +891,13 @@ M.commands = {
 	end,
 	open_teams_gui = function(cmd)
 		switch_teams_gui(game.get_player(cmd.player_index))
-	end
+	end,
+	accept_team_invite = function(cmd)
+		-- TODO: accept by numbers and team names
+	end,
+	show_team_invites = function(cmd)
+		-- TODO: show with id!
+	end,
 }
 
 
