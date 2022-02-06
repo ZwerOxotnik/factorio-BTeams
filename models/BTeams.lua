@@ -652,7 +652,7 @@ local function on_gui_click(event)
 	if not (element and element.valid) then return end
 	local player = game.get_player(event.player_index)
 	if not (player and player.valid) then return end
-	-- if element.get_mod() ~= "system_of_teams" then return end
+	-- if element.get_mod() ~= "BTeams" then return end
 
 	local f = GUIS[element.name]
 	if f then f(element, player) end
@@ -730,8 +730,8 @@ end
 
 local function add_remote_interface()
 	-- https://lua-api.factorio.com/latest/LuaRemote.html
-	remote.remove_interface("system_of_teams") -- For safety
-	remote.add_interface("system_of_teams", {
+	remote.remove_interface("BTeams") -- For safety
+	remote.add_interface("BTeams", {
 		get_mod_data = function()
 			return mod_data
 		end,
