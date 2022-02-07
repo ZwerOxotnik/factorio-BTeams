@@ -421,24 +421,31 @@ local function switch_team_gui(player)
 
 		local dropdown = flow4.add{type = "drop-down", name = "bt_found_team_players"}
 		local connected_players = game.connected_players
+		local found_players = {}
 		if #connected_players <= 16 then
-			local list = {}
 			for i=1, #connected_players do
 				local _player = connected_players[i]
 				if _player.index ~= player_index then
-					list[#list+1] = _player.name
+					found_players[#found_players+1] = _player.name
 				end
 			end
-			if #list > 0 then
-				dropdown.items = list
+			if #found_players > 0 then
+				dropdown.items = found_players
 				dropdown.selected_index = 1
 			end
 		end
 
 		-- flow4.add{type = "button", name = "bt_promote", style = "zk_action_button_dark", caption = {"gui-player-management.promote"}}.style.maximal_width = 0
 		-- flow4.add{type = "button", name = "bt_demote", style = "zk_action_button_dark", caption = {"gui-player-management.demote"}}.style.maximal_width = 0
-		flow4.add{type = "button", name = "bt_invite", style = "zk_action_button_dark", caption = "Invite"}.style.maximal_width = 0
-		flow4.add{type = "button", name = "bt_kick_player", style = "zk_action_button_dark", caption = {"gui-player-management.kick"}}.style.maximal_width = 0
+		local invite_button = flow4.add{type = "button", name = "bt_invite", style = "zk_action_button_dark", caption = "Invite"}
+		invite_button.style.maximal_width = 0
+		local kick_button = flow4.add{type = "button", name = "bt_kick_player", style = "zk_action_button_dark", caption = {"gui-player-management.kick"}}
+		kick_button.style.maximal_width = 0
+		if #found_players == 0 then
+			invite_button.visible = false
+			kick_button.visible = false
+			dropdown.visible = false
+		end
 
 		local f_invite_requests = force_invite_requests[force_index]
 		if #f_invite_requests > 0 then
@@ -636,20 +643,23 @@ local GUIS = {
 		local dropdown = parent.parent.bt_flow_with_player_actions.bt_found_team_players
 		dropdown.items = found_players
 		if #found_players > 0 then
+			dropdown.visible = true
 			dropdown.selected_index = 1
 		else
-			dropdown.selected_index = 0
+			dropdown.visible = false
 		end
 	end,
 	--TODO: add localization
 	bt_kick_player = function(element, player)
-		if player.forces.players[1] ~= player then
+		local drop_down = element.parent.bt_found_team_players
+		if drop_down.selected_index == 0 then return end
+
+		if player.force.players[1] ~= player then
 			--TODO: change message
 			player.print({"error.error-message-box-title"})
 			return
 		end
 
-		local drop_down = element.parent.bt_found_team_players
 		local player_name = drop_down.items[drop_down.selected_index]
 		local target = game.get_player(player_name)
 		if not (target and target.index) then
@@ -676,6 +686,8 @@ local GUIS = {
 	--TODO: add localization
 	bt_invite = function(element, player)
 		local drop_down = element.parent.bt_found_team_players
+		if drop_down.selected_index == 0 then return end
+
 		local player_name = drop_down.items[drop_down.selected_index]
 		local target = game.get_player(player_name)
 		if not (target and target.index) then
