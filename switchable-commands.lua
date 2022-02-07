@@ -18,6 +18,9 @@ Returns tables of commands without functions as command "settings". All paramete
 return {
 	open_team_gui = {name = "open-team-gui"},
 	open_teams_gui = {name = "open-teams-gui"},
-	accept_team_invite = {name = "accept-team-invite"},
+	accept_team_invite = {name = "accept-team-invite", is_allowed_empty_args = false},
 	show_team_invites = {name = "show-team-invites"},
+	invite_in_team = {name = "invite-in-team", input_type = "player"},
+	join_team = {name = "join-team", input_type = "team"},
+	abandon_team = {name = "abandon-team"},
 }

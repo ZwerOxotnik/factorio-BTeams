@@ -12,7 +12,16 @@ local runtime_settings = {
 	{type = "string-setting", name = "bt_default_surface", default_value = '', allow_blank = true, auto_trim = true},
 	{type = "string-setting", name = "bt_spawn_method", default_value = "compact", allowed_values = {"compact", "web", "mini-web"}}
 }
-for _, setting in pairs(runtime_settings) do
+for _, setting in ipairs(runtime_settings) do
 	setting.setting_type = "runtime-global"
 end
 data:extend(runtime_settings)
+
+
+local runtime_per_user_settings = {
+	{type = "bool-setting", name = "bt_ignore_invites", default_value = false},
+}
+for _, setting in ipairs(runtime_per_user_settings) do
+	setting.setting_type = "runtime-per-user"
+end
+data:extend(runtime_per_user_settings)

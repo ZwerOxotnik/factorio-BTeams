@@ -39,6 +39,7 @@ local custom_EasyAPI_events
 
 
 --#region Constants
+local find = string.find
 local call = remote.call
 local player_force_index = 1
 local enemy_force_index = 2
@@ -338,7 +339,7 @@ local function destroy_team_gui(player)
 	end
 end
 
--- TODO: change (it's too raw etc)
+--TODO: change (it's too raw etc)
 local function switch_team_gui(player)
 	local screen = player.gui.screen
 	if screen.bt_show_team_frame then
@@ -415,8 +416,25 @@ local function switch_team_gui(player)
 		flow3.add(SEARCH_BUTTON)
 
 		local flow4 = shallow_frame.add(FLOW)
+		flow4.name = "bt_flow_with_player_actions"
 		flow4.style.top_padding = 4
-		flow4.add{type = "drop-down", name = "bt_found_team_players"}
+
+		local dropdown = flow4.add{type = "drop-down", name = "bt_found_team_players"}
+		local connected_players = game.connected_players
+		if #connected_players <= 16 then
+			local list = {}
+			for i=1, #connected_players do
+				local _player = connected_players[i]
+				if _player.index ~= player_index then
+					list[#list+1] = connected_players[i].name
+				end
+			end
+			if #list > 0 then
+				dropdown.items = list
+				dropdown.selected_index = 1
+			end
+		end
+
 		flow4.add{type = "button", name = "bt_promote", style = "zk_action_button_dark", caption = {"gui-player-management.promote"}}.style.maximal_width = 0
 		flow4.add{type = "button", name = "bt_demote", style = "zk_action_button_dark", caption = {"gui-player-management.demote"}}.style.maximal_width = 0
 		flow4.add{type = "button", name = "bt_invite", style = "zk_action_button_dark", caption = "Invite"}.style.maximal_width = 0
@@ -529,9 +547,11 @@ end
 --#region Functions of events
 
 local function on_player_created(event)
-	local player = game.get_player(event.player_index)
+	local player_index = event.player_index
+	local player = game.get_player(player_index)
 	if not (player and player.valid) then return end
 
+	player_invite_requests[player_index] = {}
 	create_left_relative_gui(player)
 end
 
@@ -546,9 +566,9 @@ local function on_forces_merging(event)
 	end
 
 	source_index = event.source.index
-	for _, player in pairs(game.players) do
+	for player_index, player in pairs(game.players) do
 		if player.valid then
-			player_invite_requests[player.index][source_index] = nil
+			player_invite_requests[player_index][source_index] = nil
 		end
 	end
 end
@@ -570,7 +590,7 @@ local mod_settings = {
 	["bt_allow_bandits"] = function(value)
 		allow_bandits = value
 		if allow_bandits then
-			-- TODO: improve (in some it can't be created)
+			--TODO: improve (in some it can't be created)
 			if game.forces.bandits == nil then
 				mod_data.bandits_force_index = game.create_force("bandits").index
 			end
@@ -588,7 +608,6 @@ local mod_settings = {
 	["bt_spawn_method"] = function(value) spawn_method = SPAWN_METHODS[value] end
 }
 local function on_runtime_mod_setting_changed(event)
-	-- if event.setting_type ~= "runtime-global" then return end
 	local setting_name = event.setting
 	local f = mod_settings[setting_name]
 	if f then f(settings.global[setting_name].value) end
@@ -598,18 +617,48 @@ local GUIS = {
 	bt_close = function(element)
 		element.parent.parent.destroy()
 	end,
+	bt_search = function(element, player)
+		local parent = element.parent
+		local textfield = parent.bt_team_player
+
+		local found_players = {}
+		--TODO: improve pattern
+		local search_pattern = ".+" .. textfield.text .. ".+"
+		local player_index = player.index
+		for target_index, target in pairs(game.players) do
+			if target_index ~= player_index then
+				if find(target.name, search_pattern) then
+					found_players[#found_players+1] = target.name
+				end
+			end
+		end
+
+		local dropdown = parent.parent.bt_flow_with_player_actions.bt_found_team_players
+		dropdown.items = found_players
+		if #found_players > 0 then
+			dropdown.selected_index = 1
+		else
+			dropdown.selected_index = 0
+		end
+	end,
+	--TODO: add localization
 	bt_invite = function(element, player)
 		local drop_down = element.parent.bt_found_team_players
 		local player_name = drop_down.items[drop_down.selected_index]
 		local target = game.get_player(player_name)
 		if not (target and target.index) then
+			--TODO: change message
+			player.print({"error.error-message-box-title"})
+			return
+		elseif target.mod_settings["bt_ignore_invites"].value then
+			--TODO: change message!!!
 			player.print({"error.error-message-box-title"})
 			return
 		end
 
 		local player_force = player.force
 		if player_force == target.force then
-			--TODO: change
+			--TODO: change message
 			player.print({"error.error-message-box-title"})
 			return
 		end
@@ -664,7 +713,7 @@ local GUIS = {
 		parent.parent.parent.destroy()
 		player.force = new_team
 
-		-- if is_solo_team then return end -- TODO: change
+		-- if is_solo_team then return end --TODO: change
 		if not allow_random_team_spawn then return end
 
 		local surface = get_team_game_surface(player)
@@ -695,7 +744,7 @@ local GUIS = {
 		local surface = get_team_game_surface(player)
 		local position = force.get_spawn_position(surface)
 		player.teleport(position, surface)
-		player.gui.screen.bt_teams_frame.destroy() -- TODO: change
+		player.gui.screen.bt_teams_frame.destroy() --TODO: change
 	end
 }
 local function on_gui_click(event)
@@ -722,11 +771,19 @@ local function on_force_created(event)
 end
 
 local function on_player_joined_game(event)
-	local player = game.get_player(event.player_index)
+	local player_index = event.player_index
+	local player = game.get_player(player_index)
 	if not (player and player.valid) then return end
 
 	destroy_team_gui(player)
 	destroy_teams_frame(player)
+
+	if #player_invite_requests[player_index] > 0 then
+		if player.mod_settings["bt_ignore_invites"].value then
+			--TODO: add localization
+			player.print("You have " .. #player_invite_requests[player_index] .. " invites in teams")
+		end
+	end
 end
 
 local function on_player_left_game(event)
@@ -739,7 +796,7 @@ end
 
 local function on_pre_player_removed(event)
 	local force_index = game.get_player(event.player_index).force.index
-	-- TODO: delete invite in invite_requests etc
+	--TODO: delete invite in invite_requests etc
 end
 
 local function on_new_team(event)
@@ -807,9 +864,9 @@ local function update_global_data()
 
 	count_forces_researched()
 
-	for _, player in pairs(game.players) do
+	for player_index, player in pairs(game.players) do
 		if player.valid then
-			player_invite_requests[player.index] = player_invite_requests[player.index] or {}
+			player_invite_requests[player_index] = player_invite_requests[player_index] or {}
 
 			local relative = player.gui.relative
 			if relative.bt_buttons == nil then
@@ -892,7 +949,7 @@ M.commands = {
 	open_teams_gui = function(cmd)
 		switch_teams_gui(game.get_player(cmd.player_index))
 	end,
-	--TODO: add locale
+	--TODO: add localization
 	accept_team_invite = function(cmd)
 		local player_index = cmd.player_index
 		local player = game.get_player(player_index)
@@ -901,7 +958,7 @@ M.commands = {
 		if id == nil then
 			local new_team = game.forces[cmd.parameter]
 			if not (new_team and new_team.valid) then
-				--TODO: change
+				--TODO: change message
 				player.print({"error.error-message-box-title"})
 				return
 			end
@@ -909,7 +966,7 @@ M.commands = {
 			local invites = player_invite_requests[player_index]
 			local invite = invites[new_team.index]
 			if invite == nil then
-				--TODO: change
+				--TODO: change message
 				player.print({"error.error-message-box-title"})
 				return
 			else
@@ -918,7 +975,8 @@ M.commands = {
 				if inviter.valid then
 					inviter_name = inviter.name
 				end
-				if player.force.index ~= mod_data.bandits_force_index then
+				if player.force.index ~= mod_data.bandits_force_index
+					and player.force.index ~= void_force_index then
 					player.force.print("Player \"" .. inviter_name .. "\" added player \"" .. player.name .. "\" in team \"" .. new_team.name "\"")
 				end
 				player.force = new_team
@@ -946,14 +1004,14 @@ M.commands = {
 			end
 		end
 	end,
-	--TODO: add locale
+	--TODO: add localization
 	show_team_invites = function(cmd)
 		local player_index = cmd.player_index
 		local player = game.get_player(player_index)
 		local invites = player_invite_requests[player_index]
 		local key = next(invites)
 		if key then
-			player("You don't have any invites")
+			player.print("You don't have any invites")
 			return
 		end
 
@@ -967,7 +1025,20 @@ M.commands = {
 			end
 			message = message .. invite[1] .. ". in team\"" .. force.name .. "\" by player\"" .. inviter_name .. "\"\n"
 		end
-		player(message)
+		player.print(message)
+	end,
+	abandon_team = function(cmd)
+		local player = game.get_player(cmd.player_index)
+		player.force = "void"
+		player.teleport({player.index * 150, 0}, game.get_surface(void_surface_index))
+	end,
+	invite_in_team = function(cmd)
+		local player = game.get_player(cmd.player_index)
+		player.print("WIP")
+	end,
+	join_team = function(cmd)
+		local player = game.get_player(cmd.player_index)
+		player.print("WIP")
 	end,
 }
 
