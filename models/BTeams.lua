@@ -729,8 +729,12 @@ local GUIS = {
 		end
 	end,
 	bt_abandon_team = function(element, player)
-		player.force = "void"
-		player.teleport({player.index * 150, 0}, game.get_surface(void_surface_index))
+		if player.mod_settings["bt_teleport_in_void_when_player_abandon_team"].value then
+			player.force = "void"
+			player.teleport({player.index * 150, 0}, game.get_surface(void_surface_index))
+		else
+			-- WIP
+		end
 		player.gui.screen.bt_show_team_frame.destroy()
 	end,
 	bt_join_team = function(element, player)
@@ -1029,8 +1033,12 @@ M.commands = {
 	end,
 	abandon_team = function(cmd)
 		local player = game.get_player(cmd.player_index)
-		player.force = "void"
-		player.teleport({player.index * 150, 0}, game.get_surface(void_surface_index))
+		if player.mod_settings["bt_teleport_in_void_when_player_abandon_team"].value then
+			player.force = "void"
+			player.teleport({player.index * 150, 0}, game.get_surface(void_surface_index))
+		else
+			-- WIP
+		end
 	end,
 	invite_in_team = function(cmd)
 		local player = game.get_player(cmd.player_index)
@@ -1039,6 +1047,28 @@ M.commands = {
 	join_team = function(cmd)
 		local player = game.get_player(cmd.player_index)
 		player.print("WIP")
+	end,
+	kick_teammate = function(cmd)
+		local player = game.get_player(cmd.player_index)
+		player.print("WIP")
+		if player.forces.players[1] ~= player then
+			--TODO: change message
+			player.print({"error.error-message-box-title"})
+		end
+
+		local target = game.get_player(cmd.parameter)
+		if not (target and target.valid) then
+			--TODO: change message
+			player.print({"error.error-message-box-title"})
+		elseif player.force == target.force then
+			--TODO: change message
+			player.print({"error.error-message-box-title"})
+		end
+
+		-- if player.mod_settings["bt_teleport_in_void_when_player_kicked_from_team"].value then
+		-- 	player.force = "void"
+		-- 	player.teleport({player.index * 150, 0}, game.get_surface(void_surface_index))
+		-- end
 	end,
 }
 

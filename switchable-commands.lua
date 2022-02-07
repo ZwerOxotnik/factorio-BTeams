@@ -21,6 +21,7 @@ return {
 	accept_team_invite = {name = "accept-team-invite", is_allowed_empty_args = false},
 	show_team_invites = {name = "show-team-invites"},
 	invite_in_team = {name = "invite-in-team", input_type = "player"},
+	kick_teammate = {name = "kick-teammate", input_type = "player"},
 	join_team = {name = "join-team", input_type = "team"},
 	abandon_team = {name = "abandon-team"},
 }
