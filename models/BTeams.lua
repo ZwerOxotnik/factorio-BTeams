@@ -544,6 +544,13 @@ local function on_forces_merging(event)
 			destroy_teams_frame(player)
 		end
 	end
+
+	source_index = event.source.index
+	for _, player in pairs(game.players) do
+		if player.valid then
+			player_invite_requests[player.index][source_index] = nil
+		end
+	end
 end
 
 local function on_forces_merged(event)
@@ -619,6 +626,7 @@ local GUIS = {
 			invite[3] = game.tick
 			return
 		end
+
 		if target.connected then
 			target.print("Player \"" .. player.name .. "\" invited you in team \"" .. player_force.name .. "\"")
 		end
@@ -729,10 +737,6 @@ local function on_player_left_game(event)
 	destroy_teams_frame(player)
 end
 
-local function on_player_removed(event)
-	player_invite_requests[event.player_index] = nil
-end
-
 local function on_pre_player_removed(event)
 	local force_index = game.get_player(event.player_index).force.index
 	-- TODO: delete invite in invite_requests etc
@@ -754,14 +758,6 @@ end
 
 
 --#region Pre-game stage
-
-local function set_filters()
-	-- local filters = {
-	-- 	{filter = "type", mode = "or", type = "container"},
-	-- 	{filter = "type", mode = "or", type = "logistic-container"},
-	-- }
-	-- script.set_event_filter(defines.events.on_entity_died, filters)
-end
 
 local function add_remote_interface()
 	-- https://lua-api.factorio.com/latest/LuaRemote.html
@@ -803,6 +799,7 @@ local function update_global_data()
 	link_data()
 
 	if allow_bandits then
+		--TODO: recheck and improve
 		if game.forces.bandits == nil then
 			mod_data.bandits_force_index = game.create_force("bandits").index
 		end
@@ -856,13 +853,11 @@ M.on_init = function()
 	team_util.on_init()
 	update_global_data()
 	handle_custom_events()
-	set_filters()
 end
 M.on_load = function()
 	team_util.on_load()
 	link_data()
 	handle_custom_events()
-	set_filters()
 end
 M.on_configuration_changed = update_global_data
 M.add_remote_interface = add_remote_interface
@@ -880,7 +875,12 @@ M.events = {
 	[defines.events.on_force_created] = on_force_created,
 	[defines.events.on_player_joined_game] = on_player_joined_game,
 	[defines.events.on_player_left_game] = on_player_left_game,
-	[defines.events.on_player_removed] = on_player_removed,
+	[defines.events.on_player_removed] = function(event)
+		player_invite_requests[event.player_index] = nil
+	end,
+	[defines.events.on_player_changed_force] = function(event)
+		player_invite_requests[event.player_index] = {}
+	end,
 	-- [defines.events.on_pre_player_removed] = on_pre_player_removed
 }
 
@@ -892,11 +892,82 @@ M.commands = {
 	open_teams_gui = function(cmd)
 		switch_teams_gui(game.get_player(cmd.player_index))
 	end,
+	--TODO: add locale
 	accept_team_invite = function(cmd)
-		-- TODO: accept by numbers and team names
+		local player_index = cmd.player_index
+		local player = game.get_player(player_index)
+
+		local id = tonumber(cmd.parameter)
+		if id == nil then
+			local new_team = game.forces[cmd.parameter]
+			if not (new_team and new_team.valid) then
+				--TODO: change
+				player.print({"error.error-message-box-title"})
+				return
+			end
+
+			local invites = player_invite_requests[player_index]
+			local invite = invites[new_team.index]
+			if invite == nil then
+				--TODO: change
+				player.print({"error.error-message-box-title"})
+				return
+			else
+				local inviter = invite[2]
+				local inviter_name = "?"
+				if inviter.valid then
+					inviter_name = inviter.name
+				end
+				if player.force.index ~= mod_data.bandits_force_index then
+					player.force.print("Player \"" .. inviter_name .. "\" added player \"" .. player.name .. "\" in team \"" .. new_team.name "\"")
+				end
+				player.force = new_team
+				player.force.print("Player \"" .. inviter_name .. "\" added player \"" .. player.name .. "\" in your team")
+				invites[new_team.index] = nil
+			end
+		else
+			local invites = player_invite_requests[player_index]
+			for force_index, invite in pairs(invites) do
+				if invite[1] == id then
+					local inviter = invite[2]
+					local new_team = game.forces[force_index]
+					local inviter_name = "?"
+					if inviter.valid then
+						inviter_name = inviter.name
+					end
+					if player.force.index ~= mod_data.bandits_force_index then
+						player.force.print("Player \"" .. inviter_name .. "\" added player \"" .. player.name .. "\" in team \"" .. new_team.name "\"")
+					end
+					player.force = new_team
+					player.force.print("Player \"" .. inviter_name .. "\" added player \"" .. player.name .. "\" in your team")
+					invites[force_index] = nil
+					break
+				end
+			end
+		end
 	end,
+	--TODO: add locale
 	show_team_invites = function(cmd)
-		-- TODO: show with id!
+		local player_index = cmd.player_index
+		local player = game.get_player(player_index)
+		local invites = player_invite_requests[player_index]
+		local key = next(invites)
+		if key then
+			player("You don't have any invites")
+			return
+		end
+
+		local message = "Invites:\n"
+		for force_index, invite in pairs(invites) do
+			local force = game.forces[force_index]
+			local inviter = invite[2]
+			local inviter_name = "?"
+			if inviter.valid then
+				inviter_name = inviter.name
+			end
+			message = message .. invite[1] .. ". in team\"" .. force.name .. "\" by player\"" .. inviter_name .. "\"\n"
+		end
+		player(message)
 	end,
 }
 
