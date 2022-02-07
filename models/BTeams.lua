@@ -1010,7 +1010,7 @@ M.commands = {
 		local player = game.get_player(player_index)
 		local invites = player_invite_requests[player_index]
 		local key = next(invites)
-		if key then
+		if key == nil then
 			player.print("You don't have any invites")
 			return
 		end
