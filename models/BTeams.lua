@@ -405,8 +405,8 @@ local function switch_team_gui(player)
 			flow2.add{type = "drop-down", name = "bt_online_team_players", items = items}
 			flow2.add(LABEL).caption = {'', "Rank", {"colon"}}
 			flow2.add(LABEL)
-			flow2.add{type = "button", name = "bt_promote", style = "zk_action_button_dark", caption = {"gui-player-management.promote"}}.style.maximal_width = 0
-			flow2.add{type = "button", name = "bt_demote", style = "zk_action_button_dark", caption = {"gui-player-management.demote"}}.style.maximal_width = 0
+			-- flow2.add{type = "button", name = "bt_promote", style = "zk_action_button_dark", caption = {"gui-player-management.promote"}}.style.maximal_width = 0
+			-- flow2.add{type = "button", name = "bt_demote", style = "zk_action_button_dark", caption = {"gui-player-management.demote"}}.style.maximal_width = 0
 			flow2.add{type = "button", name = "bt_kick_player", style = "zk_action_button_dark", caption = {"gui-player-management.kick"}}.style.maximal_width = 0
 		end
 
@@ -426,7 +426,7 @@ local function switch_team_gui(player)
 			for i=1, #connected_players do
 				local _player = connected_players[i]
 				if _player.index ~= player_index then
-					list[#list+1] = connected_players[i].name
+					list[#list+1] = _player.name
 				end
 			end
 			if #list > 0 then
@@ -435,8 +435,8 @@ local function switch_team_gui(player)
 			end
 		end
 
-		flow4.add{type = "button", name = "bt_promote", style = "zk_action_button_dark", caption = {"gui-player-management.promote"}}.style.maximal_width = 0
-		flow4.add{type = "button", name = "bt_demote", style = "zk_action_button_dark", caption = {"gui-player-management.demote"}}.style.maximal_width = 0
+		-- flow4.add{type = "button", name = "bt_promote", style = "zk_action_button_dark", caption = {"gui-player-management.promote"}}.style.maximal_width = 0
+		-- flow4.add{type = "button", name = "bt_demote", style = "zk_action_button_dark", caption = {"gui-player-management.demote"}}.style.maximal_width = 0
 		flow4.add{type = "button", name = "bt_invite", style = "zk_action_button_dark", caption = "Invite"}.style.maximal_width = 0
 		flow4.add{type = "button", name = "bt_kick_player", style = "zk_action_button_dark", caption = {"gui-player-management.kick"}}.style.maximal_width = 0
 
@@ -642,6 +642,38 @@ local GUIS = {
 		end
 	end,
 	--TODO: add localization
+	bt_kick_player = function(element, player)
+		if player.forces.players[1] ~= player then
+			--TODO: change message
+			player.print({"error.error-message-box-title"})
+			return
+		end
+
+		local drop_down = element.parent.bt_found_team_players
+		local player_name = drop_down.items[drop_down.selected_index]
+		local target = game.get_player(player_name)
+		if not (target and target.index) then
+			--TODO: change message
+			player.print({"error.error-message-box-title"})
+			return
+		elseif player.force ~= target.force then
+			--TODO: change message
+			player.print({"error.error-message-box-title"})
+		end
+
+
+		if settings.global["bt_teleport_in_void_when_player_kicked_from_team"].value then
+			target.force = "void"
+			target.teleport({player.index * 150, 0}, game.get_surface(void_surface_index))
+		else
+			-- WIP
+		end
+
+		if target.connected then
+			target.print("You have been kicked by \"" .. player.name .. "\" from team \"" .. player.force.name .. "\"")
+		end
+	end,
+	--TODO: add localization
 	bt_invite = function(element, player)
 		local drop_down = element.parent.bt_found_team_players
 		local player_name = drop_down.items[drop_down.selected_index]
@@ -729,7 +761,7 @@ local GUIS = {
 		end
 	end,
 	bt_abandon_team = function(element, player)
-		if player.mod_settings["bt_teleport_in_void_when_player_abandon_team"].value then
+		if settings.global["bt_teleport_in_void_when_player_abandon_team"].value then
 			player.force = "void"
 			player.teleport({player.index * 150, 0}, game.get_surface(void_surface_index))
 		else
@@ -759,6 +791,31 @@ local function on_gui_click(event)
 
 	local f = GUIS[element.name]
 	if f then f(element, player) end
+end
+
+local function on_gui_elem_changed(event)
+	local element = event.element
+	if not (element and element.valid) then return end
+	local player = game.get_player(event.player_index)
+	if not (player and player.valid) then return end
+
+	if element.name ~= "bt_found_team_players" then return end
+
+	local parent = element.parent
+	local player_name = element.items[element.selected_index]
+	local target = game.get_player(player_name)
+	if not (target and target.index) then
+		--TODO: change message
+		player.print({"error.error-message-box-title"})
+		return
+	elseif target.force == player.force then
+		parent.bt_invite.visible = false
+		parent.bt_kick_player.visible = true
+	else
+		parent.bt_invite.visible = true
+		parent.bt_kick_player.visible = false
+	end
+
 end
 
 local function on_force_created(event)
@@ -932,6 +989,7 @@ M.events = {
 	[defines.events.on_forces_merged] = on_forces_merged,
 	[defines.events.on_forces_merging] = on_forces_merging,
 	[defines.events.on_gui_click] = on_gui_click,
+	[defines.events.on_gui_elem_changed] = on_gui_elem_changed,
 	[defines.events.on_player_created] = on_player_created,
 	[defines.events.on_force_created] = on_force_created,
 	[defines.events.on_player_joined_game] = on_player_joined_game,
@@ -1033,7 +1091,7 @@ M.commands = {
 	end,
 	abandon_team = function(cmd)
 		local player = game.get_player(cmd.player_index)
-		if player.mod_settings["bt_teleport_in_void_when_player_abandon_team"].value then
+		if settings.global["bt_teleport_in_void_when_player_abandon_team"].value then
 			player.force = "void"
 			player.teleport({player.index * 150, 0}, game.get_surface(void_surface_index))
 		else
@@ -1050,7 +1108,6 @@ M.commands = {
 	end,
 	kick_teammate = function(cmd)
 		local player = game.get_player(cmd.player_index)
-		player.print("WIP")
 		if player.forces.players[1] ~= player then
 			--TODO: change message
 			player.print({"error.error-message-box-title"})
@@ -1060,15 +1117,21 @@ M.commands = {
 		if not (target and target.valid) then
 			--TODO: change message
 			player.print({"error.error-message-box-title"})
-		elseif player.force == target.force then
+		elseif player.force ~= target.force then
 			--TODO: change message
 			player.print({"error.error-message-box-title"})
 		end
 
-		-- if player.mod_settings["bt_teleport_in_void_when_player_kicked_from_team"].value then
-		-- 	player.force = "void"
-		-- 	player.teleport({player.index * 150, 0}, game.get_surface(void_surface_index))
-		-- end
+		if settings.global["bt_teleport_in_void_when_player_kicked_from_team"].value then
+			target.force = "void"
+			target.teleport({player.index * 150, 0}, game.get_surface(void_surface_index))
+		else
+			-- WIP
+		end
+
+		if target.connected then
+			target.print("You have been kicked by \"" .. player.name .. "\" from team \"" .. player.force.name .. "\"")
+		end
 	end,
 }
 

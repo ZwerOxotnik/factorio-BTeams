@@ -1,4 +1,5 @@
 local runtime_settings = {
+	{type = "int-setting",    name = "bt_team_cost", default_value = 0, minimal_value = 0, maximal_value = 400000},
 	{type = "int-setting",    name = "bt_default_spawn_offset", default_value = 400, minimal_value = 50, maximal_value = 3000},
 	{type = "bool-setting",   name = "bt_allow_random_team_spawn", default_value = true},
 	{type = "bool-setting",   name = "bt_allow_join_bandits_force", default_value = true},
