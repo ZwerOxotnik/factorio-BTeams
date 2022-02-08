@@ -23,5 +23,6 @@ return {
 	invite_in_team = {name = "invite-in-team", input_type = "player"},
 	kick_teammate = {name = "kick-teammate", input_type = "player"},
 	join_team = {name = "join-team", input_type = "team"},
+	set_base = {name = "set-base"},
 	abandon_team = {name = "abandon-team"},
 }

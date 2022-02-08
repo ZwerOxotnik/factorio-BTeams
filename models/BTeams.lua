@@ -445,6 +445,12 @@ local function switch_team_gui(player)
 			invite_button.visible = false
 			kick_button.visible = false
 			dropdown.visible = false
+		else
+			if connected_players[1].force == player.force then
+				invite_button.visible = false
+			else
+				kick_button.visible = false
+			end
 		end
 
 		local f_invite_requests = force_invite_requests[force_index]
@@ -640,13 +646,25 @@ local GUIS = {
 			end
 		end
 
-		local dropdown = parent.parent.bt_flow_with_player_actions.bt_found_team_players
+		local flow = parent.parent.bt_flow_with_player_actions
+		local dropdown = flow.bt_found_team_players
+		local kick_button = flow.bt_kick_player
+		local invite_button = flow.bt_invite
 		dropdown.items = found_players
 		if #found_players > 0 then
+			flow.visible = true
 			dropdown.visible = true
 			dropdown.selected_index = 1
+			if game.get_player(found_players[1]).force == player.force then
+				invite_button.visible = false
+				kick_button.visible = true
+			else
+				invite_button.visible = true
+				kick_button.visible = false
+			end
 		else
-			dropdown.visible = false
+			flow.visible = false
+			dropdown.items = {}
 		end
 	end,
 	--TODO: add localization
@@ -701,11 +719,11 @@ local GUIS = {
 		end
 
 		local player_force = player.force
-		if player_force == target.force then
-			--TODO: change message
-			player.print({"error.error-message-box-title"})
-			return
-		end
+		-- if player_force == target.force then
+		-- 	--TODO: change message
+		-- 	player.print({"error.error-message-box-title"})
+		-- 	return
+		-- end
 		local target_invites = player_invite_requests[target.index]
 		local invite = target_invites[player_force.index]
 		if invite == nil then
@@ -1051,11 +1069,11 @@ M.commands = {
 				end
 				if player.force.index ~= mod_data.bandits_force_index
 					and player.force.index ~= void_force_index then
-					player.force.print("Player \"" .. inviter_name .. "\" added player \"" .. player.name .. "\" in team \"" .. new_team.name "\"")
+					player.force.print("Player \"" .. inviter_name .. "\" added player \"" .. player.name .. "\" in team \"" .. new_team.name .. "\"")
 				end
 				player.force = new_team
 				player.force.print("Player \"" .. inviter_name .. "\" added player \"" .. player.name .. "\" in your team")
-				invites[new_team.index] = nil
+				player_invite_requests[player_index] = {}
 			end
 		else
 			local invites = player_invite_requests[player_index]
@@ -1068,11 +1086,11 @@ M.commands = {
 						inviter_name = inviter.name
 					end
 					if player.force.index ~= mod_data.bandits_force_index then
-						player.force.print("Player \"" .. inviter_name .. "\" added player \"" .. player.name .. "\" in team \"" .. new_team.name "\"")
+						player.force.print("Player \"" .. inviter_name .. "\" added player \"" .. player.name .. "\" in team \"" .. new_team.name .. "\"")
 					end
 					player.force = new_team
 					player.force.print("Player \"" .. inviter_name .. "\" added player \"" .. player.name .. "\" in your team")
-					invites[force_index] = nil
+					player_invite_requests[player_index] = {}
 					break
 				end
 			end
@@ -1097,7 +1115,7 @@ M.commands = {
 			if inviter.valid then
 				inviter_name = inviter.name
 			end
-			message = message .. invite[1] .. ". in team\"" .. force.name .. "\" by player\"" .. inviter_name .. "\"\n"
+			message = message .. invite[1] .. ". In team\"" .. force.name .. "\" by player\"" .. inviter_name .. "\"\n"
 		end
 		player.print(message)
 	end,
@@ -1145,6 +1163,8 @@ M.commands = {
 			target.print("You have been kicked by \"" .. player.name .. "\" from team \"" .. player.force.name .. "\"")
 		end
 	end,
+	set_base = function ()
+	end
 }
 
 
