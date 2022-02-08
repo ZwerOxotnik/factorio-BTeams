@@ -120,9 +120,9 @@ local SPAWN_METHODS = {
 	---@return table? #position
 	["compact"] = function(c_pos, d)
 		local position = c_pos({0, d})
-			or c_pos({d, 0})
+			or c_pos({ d, 0})
 			or c_pos({-d, 0})
-			or c_pos({0, -d})
+			or c_pos({ 0,-d})
 		if position then return position end
 
 		local step = d / default_spawn_offset
@@ -198,16 +198,30 @@ local function get_team_game_surface(player)
 	end
 end
 
----@param surface SurfaceIdentification
+---@param surface LuaSurface
+---@param team LuaForce
 ---@return table? #position
-local function get_team_spawn_position(surface)
+local function get_team_spawn_position(surface, team)
 	local is_chunk_generated = surface.is_chunk_generated
 	local spawn_offset = mod_data.spawn_offset
 	local position
+
+	local spawn_filter = {
+		position = nil,
+		limit = 1,
+		radius = 300,
+		force = {team, "enemy", "neutral"},
+		invert = true
+	}
+
 	-- Check position
 	local c_pos = function(_position)
 		if is_chunk_generated(_position) == false then
-			return _position
+			spawn_filter.position = _position
+			local near_team_entities = surface.find_entities_filtered(spawn_filter)
+			if #near_team_entities == 0 then
+				return _position
+			end
 		end
 	end
 
@@ -217,7 +231,7 @@ local function get_team_spawn_position(surface)
 			spawn_offset = spawn_offset + default_spawn_offset
 		end
 	end
-	surface.request_to_generate_chunks(position, 2)
+	surface.request_to_generate_chunks(position, 2) -- Perhaps, it should be 9 insted of 2
 	position = surface.find_non_colliding_position("character", position, 100, 5)
 	mod_data.spawn_offset = spawn_offset
 	return position
@@ -778,16 +792,29 @@ local GUIS = {
 		-- if is_solo_team then return end --TODO: change
 		if not allow_random_team_spawn then return end
 
-		local surface = get_team_game_surface(player)
-		local position = get_team_spawn_position(surface)
-		if position then
-			player.teleport(position, surface)
+		local target_surface = get_team_game_surface(player)
+		local new_position = get_team_spawn_position(target_surface, new_team)
+		if new_position then
+			player.teleport(new_position, target_surface)
 			local DESTROY_TYPE = {raise_destroy = true}
-			local enemy_units = surface.find_enemy_units(position, 200, new_team)
-			for i=#enemy_units, 1, -1 do
-				enemy_units[i].destroy(DESTROY_TYPE)
+			local no_biters_radius = settings.global["bt_delete_biters_radius_on_new_base"].value
+			if no_biters_radius > 0 then
+				local enemies = target_surface.find_entities_filtered{
+					position = new_position,
+					radius = no_biters_radius,
+					force = "enemy"
+				}
+				-- TODO: improve because it won't delete in non-loaded chunks
+				for i=#enemies, 1, -1 do
+					enemies[i].destroy(DESTROY_TYPE)
+				end
 			end
-			new_team.set_spawn_position(position, surface)
+			new_team.set_spawn_position(new_position, target_surface)
+
+			new_team.print(
+				"Your team's base established at [gps=" .. new_position.x .. "," .. new_position.y .. "," .. target_surface.name .. "]",
+				{1, 1, 0}
+			)
 		end
 	end,
 	bt_abandon_team = function(element, player)
@@ -1163,7 +1190,62 @@ M.commands = {
 			target.print("You have been kicked by \"" .. player.name .. "\" from team \"" .. player.force.name .. "\"")
 		end
 	end,
-	set_base = function ()
+	set_base = function(cmd)
+		local player = game.get_player(cmd.player_index)
+		local target_surface = get_team_game_surface(player)
+		--TODO: improve!
+		if target_surface.index == void_surface_index then
+			--TODO: change message
+			player.print({"error.error-message-box-title"})
+		end
+
+		local new_position
+		if settings.global["bt_auto_set_base"].value then
+			new_position = get_team_spawn_position(target_surface, player.force)
+			if new_position == nil then
+				--TODO: change message
+				player.print({"error.error-message-box-title"})
+				return
+			end
+			player.teleport(new_position, target_surface)
+		else
+			local near_team_entities = target_surface.find_entities_filtered({
+				position = player.position,
+				limit = 1,
+				radius = 300,
+				force = {player.force, "enemy", "neutral"},
+				invert = true
+			})
+
+			if #near_team_entities == 0 then
+				new_position = player.position
+			else
+				--TODO: change message
+				player.print({"error.error-message-box-title"})
+				return
+			end
+		end
+
+		player.force.set_spawn_position(new_position, target_surface)
+
+		local no_biters_radius = settings.global["bt_delete_biters_radius_on_new_base"].value
+		if no_biters_radius > 0 then
+			local enemies = target_surface.find_entities_filtered{
+				position = new_position,
+				radius = no_biters_radius,
+				force = "enemy"
+			}
+			local DESTROY_TYPE = {raise_destroy = true}
+			-- TODO: improve because it won't delete in non-loaded chunks
+			for i=#enemies, 1, -1 do
+				enemies[i].destroy(DESTROY_TYPE)
+			end
+		end
+
+		player.force.print(
+			"Your team's base established at [gps=" .. new_position.x .. "," .. new_position.y .. "," .. target_surface.name .. "]",
+			{1, 1, 0}
+		)
 	end
 }
 
