@@ -772,6 +772,7 @@ local GUIS = {
 	end,
 	bt_create_team = function(element, player)
 		if not allow_create_team then
+			--TODO: change message
 			player.print({"error.error-message-box-title"})
 			return
 		end
@@ -780,6 +781,8 @@ local GUIS = {
 		local team_name = parent.team_name.text
 		local new_team = team_util.create_team(team_name, player)
 		if not (new_team and new_team.valid) then
+			--TODO: change message
+			player.print({"error.error-message-box-title"})
 			return
 		end
 		local is_solo_team = true
@@ -872,7 +875,6 @@ local function on_gui_elem_changed(event)
 		parent.bt_invite.visible = true
 		parent.bt_kick_player.visible = false
 	end
-
 end
 
 local function on_force_created(event)
@@ -892,6 +894,11 @@ local function on_player_joined_game(event)
 	local player_index = event.player_index
 	local player = game.get_player(player_index)
 	if not (player and player.valid) then return end
+
+	player.print(
+		"WARNING: \"Better teams\" mod is raw and not ready for use yet! I'll make it stable etc in ~7 days.",
+		{1, 0.1, 0.1}
+	)
 
 	destroy_team_gui(player)
 	destroy_teams_frame(player)
@@ -936,8 +943,8 @@ end
 
 local function add_remote_interface()
 	-- https://lua-api.factorio.com/latest/LuaRemote.html
-	remote.remove_interface("system_of_teams") -- For safety
-	remote.add_interface("system_of_teams", {
+	remote.remove_interface("BTeams") -- For safety
+	remote.add_interface("BTeams", {
 		get_mod_data = function()
 			return mod_data
 		end,
@@ -1199,9 +1206,15 @@ M.commands = {
 			player.print({"error.error-message-box-title"})
 		end
 
+		local player_force = player.force
+		if call("EasyAPI", "has_team_base_by_index", player_force.index) then
+			player_force.print("Your team has a base already", {1, 0, 0})
+			return
+		end
+
 		local new_position
 		if settings.global["bt_auto_set_base"].value then
-			new_position = get_team_spawn_position(target_surface, player.force)
+			new_position = get_team_spawn_position(target_surface, player_force)
 			if new_position == nil then
 				--TODO: change message
 				player.print({"error.error-message-box-title"})
@@ -1213,10 +1226,9 @@ M.commands = {
 				position = player.position,
 				limit = 1,
 				radius = 300,
-				force = {player.force, "enemy", "neutral"},
+				force = {player_force, "enemy", "neutral"},
 				invert = true
 			})
-
 			if #near_team_entities == 0 then
 				new_position = player.position
 			else
@@ -1226,7 +1238,8 @@ M.commands = {
 			end
 		end
 
-		player.force.set_spawn_position(new_position, target_surface)
+		player_force.set_spawn_position(new_position, target_surface)
+		call("EasyAPI", "change_team_base", player_force, target_surface, new_position)
 
 		local no_biters_radius = settings.global["bt_delete_biters_radius_on_new_base"].value
 		if no_biters_radius > 0 then
@@ -1242,7 +1255,7 @@ M.commands = {
 			end
 		end
 
-		player.force.print(
+		player_force.print(
 			"Your team's base established at [gps=" .. new_position.x .. "," .. new_position.y .. "," .. target_surface.name .. "]",
 			{1, 1, 0}
 		)

@@ -9,7 +9,7 @@
     "description": "see locale/*",
     "dependencies": [
         "flib",
-        "EasyAPI >= 0.6.0",
+        "EasyAPI >= 0.9.0",
         "zk-lib >= 0.10.0"
     ]
 }
