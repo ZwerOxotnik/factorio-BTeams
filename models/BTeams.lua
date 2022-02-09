@@ -74,19 +74,16 @@ local CLOSE_BUTTON = {
 local max_teams = settings.global["EAPI_max_teams"].value
 
 ---@type boolean
-local allow_random_team_spawn = settings.global["bt_allow_random_team_spawn"].value
-
----@type boolean
 local allow_rename_teams = settings.global["bt_allow_rename_teams"].value
 
 ---@type boolean
 local allow_create_team = settings.global["EAPI_allow_create_team"].value
 
 ---@type boolean
-local allow_abandon_team = settings.global["bt_allow_abandon_team"].value
+local allow_abandon_teams = settings.global["bt_allow_abandon_teams"].value
 
 ---@type boolean
-local allow_switch_team = settings.global["bt_allow_switch_team"].value
+local allow_switch_teams = settings.global["bt_allow_switch_teams"].value
 
 ---@type boolean
 local allow_bandits = settings.global["bt_allow_bandits"].value
@@ -237,6 +234,70 @@ local function get_team_spawn_position(surface, team)
 	return position
 end
 
+---@param player LuaPlayer
+local function set_team_base(player)
+	local target_surface = get_team_game_surface(player)
+	--TODO: improve!
+	if target_surface.index == void_surface_index then
+		--TODO: change message
+		player.print({"error.error-message-box-title"})
+	end
+
+	local player_force = player.force
+	if call("EasyAPI", "has_team_base_by_index", player_force.index) then
+		player_force.print("Your team has a base already", {1, 0, 0})
+		return
+	end
+
+	local new_position
+	if settings.global["bt_auto_set_base"].value then
+		new_position = get_team_spawn_position(target_surface, player_force)
+		if new_position == nil then
+			--TODO: change message
+			player.print({"error.error-message-box-title"})
+			return
+		end
+		player.teleport(new_position, target_surface)
+	else
+		local near_team_entities = target_surface.find_entities_filtered({
+			position = player.position,
+			limit = 1,
+			radius = 300,
+			force = {player_force, "enemy", "neutral"},
+			invert = true
+		})
+		if #near_team_entities == 0 then
+			new_position = player.position
+		else
+			--TODO: change message
+			player.print({"error.error-message-box-title"})
+			return
+		end
+	end
+
+	player_force.set_spawn_position(new_position, target_surface)
+	call("EasyAPI", "change_team_base", player_force, target_surface, new_position)
+
+	local no_biters_radius = settings.global["bt_delete_biters_radius_on_new_base"].value
+	if no_biters_radius > 0 then
+		local enemies = target_surface.find_entities_filtered{
+			position = new_position,
+			radius = no_biters_radius,
+			force = "enemy"
+		}
+		local DESTROY_TYPE = {raise_destroy = true}
+		-- TODO: improve because it won't delete in non-loaded chunks
+		for i=#enemies, 1, -1 do
+			enemies[i].destroy(DESTROY_TYPE)
+		end
+	end
+
+	player_force.print(
+		"Your team's base established at [gps=" .. new_position.x .. "," .. new_position.y .. "," .. target_surface.name .. "]",
+		{1, 1, 0}
+	)
+end
+
 local function count_forces_researched()
 	for _, force in pairs(game.forces) do
 		local researched_count = 0
@@ -296,7 +357,7 @@ local function add_row_team(add, force, force_name, force_index, label_data)
 	label_data.caption = forces_researched[force_index]
 	add(label_data)
 
-	if allow_switch_team then
+	if allow_switch_teams then
 		local sub = add(FLOW)
 		sub.name = force_name
 		sub.add(JOIN_TEAM_BUTTON).name = "bt_join_team"
@@ -393,7 +454,7 @@ local function switch_team_gui(player)
 		label.name = "bt_force_name"
 		label.caption = force_name
 	end
-	if allow_abandon_team then
+	if allow_abandon_teams then
 		local button = flow1.add(JOIN_TEAM_BUTTON)
 		button.name = "bt_abandon_team"
 		button.caption = "abandon"
@@ -610,10 +671,9 @@ end
 local mod_settings = {
 	["EAPI_allow_create_team"] = function(value) allow_create_team = value end,
 	["EAPI_max_teams"] = function(value) max_teams = value end,
-	["bt_allow_random_team_spawn"] = function(value) allow_random_team_spawn = value end,
-	["bt_allow_abandon_team"] = function(value) allow_abandon_team = value end,
+	["bt_allow_abandon_teams"] = function(value) allow_abandon_teams = value end,
 	["bt_allow_rename_teams"] = function(value) allow_rename_teams = value end,
-	["bt_allow_switch_team"] = function(value) allow_switch_team = value end,
+	["bt_allow_switch_teams"] = function(value) allow_switch_teams = value end,
 	["bt_allow_bandits"] = function(value)
 		allow_bandits = value
 		if allow_bandits then
@@ -709,6 +769,7 @@ local GUIS = {
 			target.teleport({player.index * 150, 0}, game.get_surface(void_surface_index))
 		else
 			-- WIP
+			player.force = "player"
 		end
 
 		if target.connected then
@@ -792,33 +853,7 @@ local GUIS = {
 		parent.parent.parent.destroy()
 		player.force = new_team
 
-		-- if is_solo_team then return end --TODO: change
-		if not allow_random_team_spawn then return end
-
-		local target_surface = get_team_game_surface(player)
-		local new_position = get_team_spawn_position(target_surface, new_team)
-		if new_position then
-			player.teleport(new_position, target_surface)
-			local DESTROY_TYPE = {raise_destroy = true}
-			local no_biters_radius = settings.global["bt_delete_biters_radius_on_new_base"].value
-			if no_biters_radius > 0 then
-				local enemies = target_surface.find_entities_filtered{
-					position = new_position,
-					radius = no_biters_radius,
-					force = "enemy"
-				}
-				-- TODO: improve because it won't delete in non-loaded chunks
-				for i=#enemies, 1, -1 do
-					enemies[i].destroy(DESTROY_TYPE)
-				end
-			end
-			new_team.set_spawn_position(new_position, target_surface)
-
-			new_team.print(
-				"Your team's base established at [gps=" .. new_position.x .. "," .. new_position.y .. "," .. target_surface.name .. "]",
-				{1, 1, 0}
-			)
-		end
+		set_team_base(player)
 	end,
 	bt_abandon_team = function(element, player)
 		if settings.global["bt_teleport_in_void_when_player_abandon_team"].value then
@@ -826,6 +861,7 @@ local GUIS = {
 			player.teleport({player.index * 150, 0}, game.get_surface(void_surface_index))
 		else
 			-- WIP
+			player.force = "player"
 		end
 		player.gui.screen.bt_show_team_frame.destroy()
 	end,
@@ -896,7 +932,7 @@ local function on_player_joined_game(event)
 	if not (player and player.valid) then return end
 
 	player.print(
-		"WARNING: \"Better teams\" mod is raw and not ready for use yet! I'll make it stable etc in ~7 days.",
+		"WARNING: \"Better teams\" mod is raw and not ready for use yet! I'll make it stable etc in ~7 days or more.",
 		{1, 0.1, 0.1}
 	)
 
@@ -1160,6 +1196,7 @@ M.commands = {
 			player.teleport({player.index * 150, 0}, game.get_surface(void_surface_index))
 		else
 			-- WIP
+			player.force = "player"
 		end
 	end,
 	invite_in_team = function(cmd)
@@ -1191,6 +1228,7 @@ M.commands = {
 			target.teleport({player.index * 150, 0}, game.get_surface(void_surface_index))
 		else
 			-- WIP
+			player.force = "player"
 		end
 
 		if target.connected then
@@ -1198,67 +1236,7 @@ M.commands = {
 		end
 	end,
 	set_base = function(cmd)
-		local player = game.get_player(cmd.player_index)
-		local target_surface = get_team_game_surface(player)
-		--TODO: improve!
-		if target_surface.index == void_surface_index then
-			--TODO: change message
-			player.print({"error.error-message-box-title"})
-		end
-
-		local player_force = player.force
-		if call("EasyAPI", "has_team_base_by_index", player_force.index) then
-			player_force.print("Your team has a base already", {1, 0, 0})
-			return
-		end
-
-		local new_position
-		if settings.global["bt_auto_set_base"].value then
-			new_position = get_team_spawn_position(target_surface, player_force)
-			if new_position == nil then
-				--TODO: change message
-				player.print({"error.error-message-box-title"})
-				return
-			end
-			player.teleport(new_position, target_surface)
-		else
-			local near_team_entities = target_surface.find_entities_filtered({
-				position = player.position,
-				limit = 1,
-				radius = 300,
-				force = {player_force, "enemy", "neutral"},
-				invert = true
-			})
-			if #near_team_entities == 0 then
-				new_position = player.position
-			else
-				--TODO: change message
-				player.print({"error.error-message-box-title"})
-				return
-			end
-		end
-
-		player_force.set_spawn_position(new_position, target_surface)
-		call("EasyAPI", "change_team_base", player_force, target_surface, new_position)
-
-		local no_biters_radius = settings.global["bt_delete_biters_radius_on_new_base"].value
-		if no_biters_radius > 0 then
-			local enemies = target_surface.find_entities_filtered{
-				position = new_position,
-				radius = no_biters_radius,
-				force = "enemy"
-			}
-			local DESTROY_TYPE = {raise_destroy = true}
-			-- TODO: improve because it won't delete in non-loaded chunks
-			for i=#enemies, 1, -1 do
-				enemies[i].destroy(DESTROY_TYPE)
-			end
-		end
-
-		player_force.print(
-			"Your team's base established at [gps=" .. new_position.x .. "," .. new_position.y .. "," .. target_surface.name .. "]",
-			{1, 1, 0}
-		)
+		set_team_base(game.get_player(cmd.player_index))
 	end
 }
 

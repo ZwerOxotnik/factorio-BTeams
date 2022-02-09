@@ -95,7 +95,7 @@ local function add_custom_command(orig_command_name, command_settings, original_
 		end
 	end
 
-	local command_description = command_settings.description or {"free-market-commands." .. command_settings.name}
+	local command_description = command_settings.description or {"BTeams-commands." .. command_settings.name}
 	commands.add_command(command_name, command_description, function(cmd)
 		if cmd.player_index == 0 then
 			if command_settings.allow_for_server == false then
@@ -257,13 +257,13 @@ function M:create_settings()
 	local new_settings = {}
 	for key, command in pairs(SWITCHABLE_COMMANDS) do
 		local command_name = command.name or key
-		local description = command.description or {"free-market-commands." .. command_name}
+		local description = command.description or {"BTeams-commands." .. command_name}
 		command_name = '/' .. command_name
 		new_settings[#new_settings + 1] = {
 			type = "bool-setting",
 			name = "BTS_" .. key,
 			setting_type = "runtime-global",
-			default_value = command.default_value or false,
+			default_value = command.default_value or true,
 			localised_name = command_name,
 			localised_description = {'', command_name, ' ', description}
 		}
