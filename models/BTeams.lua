@@ -39,6 +39,7 @@ local custom_EasyAPI_events
 
 
 --#region Constants
+local gsub = string.gsub
 local find = string.find
 local call = remote.call
 local player_force_index = 1
@@ -709,8 +710,18 @@ local GUIS = {
 		local textfield = parent.bt_team_player
 
 		local found_players = {}
-		--TODO: improve pattern
-		local search_pattern = ".+" .. textfield.text .. ".+"
+		--TODO: fix % symbol
+		local search_pattern = gsub(textfield.text, "%+", "%%+")
+		search_pattern = gsub(search_pattern, "%-", "%%-")
+		search_pattern = gsub(search_pattern, "%?", "%%?")
+		search_pattern = gsub(search_pattern, "%(", "%%(")
+		search_pattern = gsub(search_pattern, "%)", "%%)")
+		search_pattern = gsub(search_pattern, "%*", "%%*")
+		search_pattern = gsub(search_pattern, "%[", "%%[")
+		search_pattern = gsub(search_pattern, "%]", "%%]")
+		search_pattern = gsub(search_pattern, "%^", "%%^")
+		search_pattern = gsub(search_pattern, "%$", "%%$")
+		search_pattern = ".+" .. search_pattern .. ".+"
 		local player_index = player.index
 		for target_index, target in pairs(game.players) do
 			if target_index ~= player_index then
