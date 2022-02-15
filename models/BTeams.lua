@@ -715,8 +715,8 @@ local GUIS = {
 		end
 
 		local found_players = {}
-		--TODO: fix % symbol
 		local search_pattern = gsub(text, "%+", "%%+")
+		search_pattern = gsub(search_pattern, "%%", "%%%%")
 		search_pattern = gsub(search_pattern, "%-", "%%-")
 		search_pattern = gsub(search_pattern, "%?", "%%?")
 		search_pattern = gsub(search_pattern, "%(", "%%(")
