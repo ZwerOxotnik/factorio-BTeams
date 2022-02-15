@@ -707,11 +707,16 @@ local GUIS = {
 	end,
 	bt_search = function(element, player)
 		local parent = element.parent
-		local textfield = parent.bt_team_player
+		local text = parent.bt_team_player.text
+
+		if #text > 30 then
+			player.print({"gui-auth-server.username-too-long"})
+			return
+		end
 
 		local found_players = {}
 		--TODO: fix % symbol
-		local search_pattern = gsub(textfield.text, "%+", "%%+")
+		local search_pattern = gsub(text, "%+", "%%+")
 		search_pattern = gsub(search_pattern, "%-", "%%-")
 		search_pattern = gsub(search_pattern, "%?", "%%?")
 		search_pattern = gsub(search_pattern, "%(", "%%(")
