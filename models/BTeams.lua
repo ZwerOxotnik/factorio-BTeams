@@ -495,19 +495,15 @@ local function switch_team_gui(player)
 		flow4.style.top_padding = 4
 
 		local dropdown = flow4.add{type = "drop-down", name = "bt_found_team_players"}
-		local connected_players = game.connected_players
 		local found_players = {}
-		if #connected_players <= 16 then
-			for i=1, #connected_players do
-				local _player = connected_players[i]
-				if _player.index ~= player_index then
-					found_players[#found_players+1] = _player.name
-				end
+		for index, _player in pairs(game.players) do
+			if index ~= player_index then
+				found_players[#found_players+1] = _player.name
 			end
-			if #found_players > 0 then
-				dropdown.items = found_players
-				dropdown.selected_index = 1
-			end
+		end
+		if #found_players > 0 then
+			dropdown.items = found_players
+			dropdown.selected_index = 1
 		end
 
 		-- flow4.add{type = "button", name = "bt_promote", style = "zk_action_button_dark", caption = {"gui-player-management.promote"}}.style.maximal_width = 0
@@ -521,7 +517,7 @@ local function switch_team_gui(player)
 			kick_button.visible = false
 			dropdown.visible = false
 		else
-			if connected_players[1].force == player.force then
+			if game.get_player(found_players[dropdown.selected_index]).force == player.force then
 				invite_button.visible = false
 			else
 				kick_button.visible = false
