@@ -756,8 +756,7 @@ local GUIS = {
 		local player_name = drop_down.items[drop_down.selected_index]
 		local target = game.get_player(player_name)
 		if not (target and target.index) then
-			--TODO: change message
-			player.print({"error.error-message-box-title"})
+			player.print({"player-doesnt-exist", player_name})
 			return
 		elseif player.force ~= target.force then
 			--TODO: change message
@@ -785,8 +784,7 @@ local GUIS = {
 		local player_name = drop_down.items[drop_down.selected_index]
 		local target = game.get_player(player_name)
 		if not (target and target.index) then
-			--TODO: change message
-			player.print({"error.error-message-box-title"})
+			player.print({"player-doesnt-exist", player_name})
 			return
 		elseif target.mod_settings["bt_ignore_invites"].value then
 			--TODO: change message!!!
@@ -902,8 +900,7 @@ local function on_gui_elem_changed(event)
 	local player_name = element.items[element.selected_index]
 	local target = game.get_player(player_name)
 	if not (target and target.index) then
-		--TODO: change message
-		player.print({"error.error-message-box-title"})
+		player.print({"player-doesnt-exist", player_name})
 		return
 	elseif target.force == player.force then
 		parent.bt_invite.visible = false
@@ -1217,8 +1214,7 @@ M.commands = {
 
 		local target = game.get_player(cmd.parameter)
 		if not (target and target.valid) then
-			--TODO: change message
-			player.print({"error.error-message-box-title"})
+			player.print({"player-doesnt-exist", cmd.parameter})
 		elseif player.force ~= target.force then
 			--TODO: change message
 			player.print({"error.error-message-box-title"})
