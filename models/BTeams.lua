@@ -438,7 +438,6 @@ local function switch_team_gui(player)
 
 	local force = player.force
 	local player_index = player.index
-	local force_index = force.index
 	local force_name = force.name
 	local is_leader = (force.players[1] == player)
 	local flow1 = shallow_frame.add(FLOW)
@@ -462,29 +461,6 @@ local function switch_team_gui(player)
 	end
 
 	if is_leader then
-		local f_connected_players = force.connected_players
-		if #f_connected_players > 1 then
-			local flow2 = shallow_frame.add(FLOW)
-			flow2.style.top_padding = 4
-			flow2.add(LABEL).caption = {'', {"command-output.player-list-online", #f_connected_players}, {"colon"}}
-
-			local items = {}
-			local size = 0
-			for i=1, #f_connected_players do
-				local o_player = f_connected_players[i]
-				if o_player.valid and o_player.index ~= player_index then
-					size = size + 1
-					items[size] = o_player.name
-				end
-			end
-			flow2.add{type = "drop-down", name = "bt_online_team_players", items = items}
-			flow2.add(LABEL).caption = {'', "Rank", {"colon"}}
-			flow2.add(LABEL)
-			-- flow2.add{type = "button", name = "bt_promote", style = "zk_action_button_dark", caption = {"gui-player-management.promote"}}.style.maximal_width = 0
-			-- flow2.add{type = "button", name = "bt_demote", style = "zk_action_button_dark", caption = {"gui-player-management.demote"}}.style.maximal_width = 0
-			flow2.add{type = "button", name = "bt_kick_player", style = "zk_action_button_dark", caption = {"gui-player-management.kick"}}.style.maximal_width = 0
-		end
-
 		local flow3 = shallow_frame.add(FLOW)
 		flow3.style.top_padding = 4
 		flow3.add{type = "textfield", name = "bt_team_player"}.style.width = 171
@@ -524,24 +500,24 @@ local function switch_team_gui(player)
 			end
 		end
 
-		local f_invite_requests = force_invite_requests[force_index]
-		if #f_invite_requests > 0 then
-			local flow5 = shallow_frame.add(FLOW)
-			flow5.style.top_padding = 4
-			flow5.add(LABEL).caption = {'', "Invites (" .. #f_invite_requests  .. ')', {"colon"}}
+		-- local f_invite_requests = force_invite_requests[force_index]
+		-- if #f_invite_requests > 0 then
+		-- 	local flow5 = shallow_frame.add(FLOW)
+		-- 	flow5.style.top_padding = 4
+		-- 	flow5.add(LABEL).caption = {'', "Invites (" .. #f_invite_requests  .. ')', {"colon"}}
 
-			local items = {}
-			local size = 0
-			for _player_index in pairs(force_invite_requests[force_index]) do
-				local _player = game.get_player(_player_index)
-				if player.valid then
-					size = size + 1
-					items[size] = _player.name
-				end
-			end
-			flow5.add{type = "drop-down", name = "bt_invites", items = items}
-			flow5.add{type = "button", name = "bt_assign_leader", style = "zk_action_button_dark", caption = "accept"}
-		end
+		-- 	local items = {}
+		-- 	local size = 0
+		-- 	for _player_index in pairs(force_invite_requests[force_index]) do
+		-- 		local _player = game.get_player(_player_index)
+		-- 		if player.valid then
+		-- 			size = size + 1
+		-- 			items[size] = _player.name
+		-- 		end
+		-- 	end
+		-- 	flow5.add{type = "drop-down", name = "bt_invites", items = items}
+		-- 	flow5.add{type = "button", name = "bt_assign_leader", style = "zk_action_button_dark", caption = "accept"}
+		-- end
 	end
 
 	main_frame.force_auto_center()
@@ -640,16 +616,15 @@ local function on_player_created(event)
 end
 
 local function on_forces_merging(event)
-	local connected_players = event.source.connected_players
-	for i=1, #connected_players do
-		local player = connected_players[i]
+	local source = event.source
+	for _, player in pairs(source.connected_players) do
 		if player.valid then
 			destroy_team_gui(player)
 			destroy_teams_frame(player)
 		end
 	end
 
-	source_index = event.source.index
+	source_index = source.index
 	for player_index, player in pairs(game.players) do
 		if player.valid then
 			player_invite_requests[player_index][source_index] = nil
