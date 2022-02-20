@@ -250,7 +250,7 @@ local function set_team_base(player)
 	--TODO: improve!
 	if target_surface.index == void_surface_index then
 		--TODO: change message
-		player.print({"error.error-message-box-title"}, {1, 0, 0})
+		player.print("It's not possible to create bases in void surface")
 	end
 
 	local player_force = player.force
@@ -263,8 +263,7 @@ local function set_team_base(player)
 	if settings.global["bt_auto_set_base"].value then
 		new_position = get_team_spawn_position(target_surface, player_force)
 		if new_position == nil then
-			--TODO: change message
-			player.print({"error.error-message-box-title"}, {1, 0, 0})
+			player.print("no suitable place found for base")
 			return
 		end
 		player.teleport(new_position, target_surface)
@@ -279,8 +278,7 @@ local function set_team_base(player)
 		if #near_team_entities == 0 then
 			new_position = player.position
 		else
-			--TODO: change message
-			player.print({"error.error-message-box-title"}, {1, 0, 0})
+			player.print("There are enemies nearby")
 			return
 		end
 	end
@@ -302,6 +300,11 @@ local function set_team_base(player)
 		end
 	end
 
+	--TODO: change message
+	game.print(
+		"New base has been established in the game",
+		{1, 1, 0}
+	)
 	player_force.print(
 		"Your team's base established at [gps=" .. new_position.x .. "," .. new_position.y .. "," .. target_surface.name .. "]",
 		{1, 1, 0}
@@ -750,8 +753,7 @@ local GUIS = {
 		if drop_down.selected_index == 0 then return end
 
 		if get_is_leader(player) == false then
-			--TODO: change message
-			player.print({"error.error-message-box-title"}, {1, 0, 0})
+			player.print("You're not a leader in this team")
 			return
 		end
 
@@ -761,8 +763,8 @@ local GUIS = {
 			player.print({"player-doesnt-exist", player_name})
 			return
 		elseif player.force ~= target.force then
-			--TODO: change message
-			player.print({"error.error-message-box-title"}, {1, 0, 0})
+			player.print("Player \"" .. target.name .. "\" in another team already.")
+			return
 		end
 
 
@@ -790,17 +792,15 @@ local GUIS = {
 			player.print({"player-doesnt-exist", player_name})
 			return
 		elseif target.mod_settings["bt_ignore_invites"].value then
-			--TODO: change message!!!
-			player.print({"error.error-message-box-title"}, {1, 0, 0})
+			player.print("Player \"" .. target.name .. "\" ignores invites in teams.")
 			return
 		end
 
 		local player_force = player.force
-		-- if player_force == target.force then
-		-- 	--TODO: change message
-		-- 	player.print({"error.error-message-box-title"}, {1, 0, 0})
-		-- 	return
-		-- end
+		if player_force == target.force then
+			player.print("Player \"" .. target.name .. "\" in your team already.")
+			return
+		end
 		local target_invites = player_invite_requests[target.index]
 		local invite = target_invites[player_force.index]
 		if invite == nil then
@@ -815,8 +815,9 @@ local GUIS = {
 			return
 		end
 
+		player.print("You invited \"" .. target.name .. "\" in your team")
 		if target.connected then
-			target.print("Player \"" .. player.name .. "\" invited you in team \"" .. player_force.name .. "\"")
+			target.print("Player \"" .. player.name .. "\" invited you in team \"" .. player_force.name .. "\". (In order to accept, write: /accept-team-invite " .. mod_data.last_invite_id .. ")")
 		end
 	end,
 	bt_customize_team = function(element, player)
@@ -835,8 +836,7 @@ local GUIS = {
 	end,
 	bt_create_team = function(element, player)
 		if not allow_create_team then
-			--TODO: change message
-			player.print({"error.error-message-box-title"}, {1, 0, 0})
+			player.print("Players can't create teams by map settings")
 			return
 		end
 
@@ -899,8 +899,7 @@ local GUIS = {
 			if new_position then
 				player.teleport(new_position, surface)
 			else
-				--TODO: change message
-				player.print({"error.error-message-box-title"}, {1, 0, 0})
+				player.print("No suitable place found for teleportation")
 			end
 		end
 		player.gui.screen.bt_teams_frame.destroy() --TODO: change
@@ -1108,17 +1107,26 @@ local function handle_custom_events()
 		if not (player and player.valid) then return end
 
 		local player_index = event.player_index
-		local players_list = first_team_players[player.force.index]
-		local is_new = true
-		for i = 1, #players_list do
-			if players_list[i] == player_index then
-				is_new = false
-				break
+		local force_index = player.force.index
+		local bandits_force_index = mod_data.bandits_force_index
+		if force_index ~= player_force_index and
+			force_index ~= enemy_force_index and
+			force_index ~= neutral_force_index and
+			force_index ~= void_force_index and
+			(bandits_force_index and force_index == bandits_force_index)
+		then
+			local players_list = first_team_players[force_index]
+			local is_new = true
+			for i = 1, #players_list do
+				if players_list[i] == player_index then
+					is_new = false
+					break
+				end
 			end
-		end
 
-		if is_new then
-			players_list[#players_list+1] = event.player_index
+			if is_new then
+				players_list[#players_list+1] = event.player_index
+			end
 		end
 
 		local prev_force = event.prev_force
@@ -1220,7 +1228,7 @@ M.commands = {
 			local invite = invites[new_team.index]
 			if invite == nil then
 				--TODO: change message
-				player.print({"error.error-message-box-title"}, {1, 0, 0})
+				player.print("Team \"" .. new_team.name .. "\" didn't send any invites to you.")
 				return
 			else
 				local inviter = invite[2]
@@ -1301,16 +1309,16 @@ M.commands = {
 	kick_teammate = function(cmd)
 		local player = game.get_player(cmd.player_index)
 		if get_is_leader(player) == false then
-			--TODO: change message
-			player.print({"error.error-message-box-title"}, {1, 0, 0})
+			player.print("You're not a leader in this team")
+			return
 		end
 
 		local target = game.get_player(cmd.parameter)
 		if not (target and target.valid) then
 			player.print({"player-doesnt-exist", cmd.parameter})
 		elseif player.force ~= target.force then
-			--TODO: change message
-			player.print({"error.error-message-box-title"}, {1, 0, 0})
+			player.print("Player \"" .. target.name .. "\" in another team already.")
+			return
 		end
 
 		if settings.global["bt_teleport_in_void_when_player_kicked_from_team"].value then
