@@ -11,8 +11,14 @@ local mod_data
 ---@type table<number, number>
 local forces_researched
 
+---@class force_settings
 ---@type table<number, table<string, any>>
-local forces_permissions
+local force_settings
+
+---{[force index] = {player index}}
+---@class first_team_players
+---@type table<number, table<number, number>>
+local first_team_players
 
 --- {force index = {[player index] = tick}}
 ---@type table<number, table<number, number>>
@@ -109,6 +115,12 @@ local default_spawn_offset = settings.global["bt_default_spawn_offset"].value
 
 
 --#region utils
+
+---@param player LuaPlayer
+---@return boolean
+local function get_is_leader(player)
+	return (first_team_players[player.force.index][1] == player)
+end
 
 ---@type table<string, function>
 local SPAWN_METHODS = {
@@ -240,7 +252,7 @@ local function set_team_base(player)
 	--TODO: improve!
 	if target_surface.index == void_surface_index then
 		--TODO: change message
-		player.print({"error.error-message-box-title"})
+		player.print({"error.error-message-box-title"}, {1, 0, 0})
 	end
 
 	local player_force = player.force
@@ -254,7 +266,7 @@ local function set_team_base(player)
 		new_position = get_team_spawn_position(target_surface, player_force)
 		if new_position == nil then
 			--TODO: change message
-			player.print({"error.error-message-box-title"})
+			player.print({"error.error-message-box-title"}, {1, 0, 0})
 			return
 		end
 		player.teleport(new_position, target_surface)
@@ -270,7 +282,7 @@ local function set_team_base(player)
 			new_position = player.position
 		else
 			--TODO: change message
-			player.print({"error.error-message-box-title"})
+			player.print({"error.error-message-box-title"}, {1, 0, 0})
 			return
 		end
 	end
@@ -348,8 +360,13 @@ local function add_row_team(add, force, force_name, force_index, label_data)
 	if #force.players > 0 then
 		label_data.caption = #force.connected_players .. '/' .. #force.players
 		add(label_data)
-		label_data.caption = force.players[1].name
-		add(label_data)
+		local player_index = first_team_players[force.index][1]
+		if player_index then
+			label_data.caption = game.get_player(player_index).name
+			add(label_data)
+		else
+			add(EMPTY_WIDGET)
+		end
 	else
 		add(EMPTY_WIDGET)
 		add(EMPTY_WIDGET)
@@ -358,9 +375,18 @@ local function add_row_team(add, force, force_name, force_index, label_data)
 	add(label_data)
 
 	if allow_switch_teams then
-		local sub = add(FLOW)
-		sub.name = force_name
-		sub.add(JOIN_TEAM_BUTTON).name = "bt_join_team"
+		local bandits_force_index = mod_data.bandits_force_index
+		if #force.players == 0 or
+			force_index == player_force_index or
+			force_index == enemy_force_index or
+			(bandits_force_index and force_index == bandits_force_index)
+		then
+			local sub = add(FLOW)
+			sub.name = force_name
+			sub.add(JOIN_TEAM_BUTTON).name = "bt_join_team"
+		else
+			add(EMPTY_WIDGET)
+		end
 	else
 		add(EMPTY_WIDGET)
 	end
@@ -439,7 +465,7 @@ local function switch_team_gui(player)
 	local force = player.force
 	local player_index = player.index
 	local force_name = force.name
-	local is_leader = (force.players[1] == player)
+	local is_leader = get_is_leader(player)
 	local flow1 = shallow_frame.add(FLOW)
 	flow1.add(LABEL).caption = {'', "Team name", {"colon"}}
 	if allow_rename_teams and is_leader then
@@ -634,8 +660,9 @@ end
 
 local function on_forces_merged(event)
 	local index = event.source_index
-	forces_permissions[index] = nil
+	force_settings[index] = nil
 	forces_researched[index] = nil
+	first_team_players[index] = nil
 	force_invite_requests[index] = nil
 end
 
@@ -722,9 +749,9 @@ local GUIS = {
 		local drop_down = element.parent.bt_found_team_players
 		if drop_down.selected_index == 0 then return end
 
-		if player.force.players[1] ~= player then
+		if get_is_leader(player) == false then
 			--TODO: change message
-			player.print({"error.error-message-box-title"})
+			player.print({"error.error-message-box-title"}, {1, 0, 0})
 			return
 		end
 
@@ -735,7 +762,7 @@ local GUIS = {
 			return
 		elseif player.force ~= target.force then
 			--TODO: change message
-			player.print({"error.error-message-box-title"})
+			player.print({"error.error-message-box-title"}, {1, 0, 0})
 		end
 
 
@@ -744,11 +771,12 @@ local GUIS = {
 			target.teleport({player.index * 150, 0}, game.get_surface(void_surface_index))
 		else
 			-- WIP
-			player.force = "player"
+			target.force = "player"
 		end
 
 		if target.connected then
-			target.print("You have been kicked by \"" .. player.name .. "\" from team \"" .. player.force.name .. "\"")
+			player.force.print("Player \"" .. target.name .. "\" have been kicked by \"" .. player.name .. "\" from your team", {1, 1, 0})
+			target.print("You have been kicked by \"" .. player.name .. "\" from team \"" .. player.force.name .. "\"", {1, 1, 0})
 		end
 	end,
 	--TODO: add localization
@@ -763,14 +791,14 @@ local GUIS = {
 			return
 		elseif target.mod_settings["bt_ignore_invites"].value then
 			--TODO: change message!!!
-			player.print({"error.error-message-box-title"})
+			player.print({"error.error-message-box-title"}, {1, 0, 0})
 			return
 		end
 
 		local player_force = player.force
 		-- if player_force == target.force then
 		-- 	--TODO: change message
-		-- 	player.print({"error.error-message-box-title"})
+		-- 	player.print({"error.error-message-box-title"}, {1, 0, 0})
 		-- 	return
 		-- end
 		local target_invites = player_invite_requests[target.index]
@@ -793,7 +821,7 @@ local GUIS = {
 	end,
 	bt_customize_team = function(element, player)
 		local force_index = player.force.index
-		if forces_permissions[force_index] == nil then
+		if force_settings[force_index] == nil then
 			player.print("This force doesn't support this action")
 			return
 		end
@@ -808,7 +836,7 @@ local GUIS = {
 	bt_create_team = function(element, player)
 		if not allow_create_team then
 			--TODO: change message
-			player.print({"error.error-message-box-title"})
+			player.print({"error.error-message-box-title"}, {1, 0, 0})
 			return
 		end
 
@@ -817,15 +845,24 @@ local GUIS = {
 		local new_team = team_util.create_team(team_name, player)
 		if not (new_team and new_team.valid) then
 			--TODO: change message
-			player.print({"error.error-message-box-title"})
+			player.print({"error.error-message-box-title"}, {1, 0, 0})
 			return
 		end
-		local is_solo_team = true
-		if #player.force.players > 1 then
-			is_solo_team = false
-		end
+
+		local prev_force = player.force
 		parent.parent.parent.destroy()
 		player.force = new_team
+		if #prev_force.players == 0 then
+			local prev_force_index = prev_force.index
+			local bandits_force_index = mod_data.bandits_force_index
+			if prev_force_index == void_force_index or
+				(bandits_force_index and prev_force_index == bandits_force_index)
+			then
+				--TODO: Improve
+			else
+				game.merge_forces(prev_force, player.force)
+			end
+		end
 
 		set_team_base(player)
 	end,
@@ -842,25 +879,38 @@ local GUIS = {
 	bt_join_team = function(element, player)
 		local force = game.forces[element.parent.name]
 		if not (force and force.valid) then
-			player.print({"error.error-message-box-title"})
+			player.print({"error.error-message-box-title"}, {1, 0, 0})
 			return
 		end
 
 		player.force = force
 		local surface = get_team_game_surface(player)
-		local position = force.get_spawn_position(surface)
-		player.teleport(position, surface)
+		local f_spawn_position = force.get_spawn_position(surface)
+		local character = player.character
+		if character == nil then
+			player.teleport(f_spawn_position, surface)
+		else
+			local new_position = surface.find_non_colliding_position(
+				character.name, f_spawn_position, 50, 1
+			)
+			if new_position then
+				player.teleport(new_position, surface)
+			else
+				--TODO: change message
+				player.print({"error.error-message-box-title"}, {1, 0, 0})
+			end
+		end
 		player.gui.screen.bt_teams_frame.destroy() --TODO: change
 	end
 }
 local function on_gui_click(event)
 	local element = event.element
 	if not (element and element.valid) then return end
-	local player = game.get_player(event.player_index)
-	if not (player and player.valid) then return end
 
 	local f = GUIS[element.name]
-	if f then f(element, player) end
+	if f then
+		f(element, game.get_player(event.player_index))
+	end
 end
 
 local function on_gui_elem_changed(event)
@@ -904,11 +954,6 @@ local function on_player_joined_game(event)
 	local player = game.get_player(player_index)
 	if not (player and player.valid) then return end
 
-	player.print(
-		"WARNING: \"Better teams\" mod is raw and not ready for use yet! I'll make it stable etc in ~7 days or more.",
-		{1, 0.1, 0.1}
-	)
-
 	destroy_team_gui(player)
 	destroy_teams_frame(player)
 
@@ -935,13 +980,15 @@ end
 
 local function on_new_team(event)
 	local index = event.force.index
-	forces_permissions[index] = {}
+	force_settings[index] = {}
+	first_team_players[index] = {}
 	force_invite_requests[index] = {}
 end
 
 local function on_pre_deleted_team(event)
 	local index = event.force.index
-	forces_permissions[index] = nil
+	force_settings[index] = nil
+	first_team_players[index] = nil
 	force_invite_requests[index] = nil
 end
 
@@ -968,7 +1015,8 @@ end
 
 local function link_data()
 	mod_data = global.ST
-	forces_permissions = mod_data.forces_permissions
+	force_settings = mod_data.force_settings
+	first_team_players = mod_data.first_team_players
 	forces_researched = mod_data.forces_researched
 	player_invite_requests = mod_data.player_invite_requests
 	force_invite_requests = mod_data.force_invite_requests
@@ -982,7 +1030,8 @@ local function update_global_data()
 	mod_data = global.ST
 	mod_data.forces_researched = {}
 	mod_data.spawn_offset = mod_data.spawn_offset or default_spawn_offset
-	mod_data.forces_permissions = mod_data.forces_permissions or {}
+	mod_data.force_settings = mod_data.force_settings or {}
+	mod_data.first_team_players = mod_data.first_team_players or {}
 	mod_data.last_invite_id = mod_data.last_invite_id or 0
 	mod_data.player_invite_requests = mod_data.player_invite_requests or {}
 	mod_data.force_invite_requests = mod_data.force_invite_requests or {}
@@ -1011,9 +1060,22 @@ local function update_global_data()
 		end
 	end
 
-	for force_index in pairs(forces_permissions) do
+	for force_index in pairs(force_settings) do
 		if game.forces[force_index] == nil then
-			forces_permissions[force_index] = nil
+			force_settings[force_index] = nil
+		end
+	end
+
+	for force_index, players_list in pairs(first_team_players) do
+		if game.forces[force_index] == nil then
+			force_settings[force_index] = nil
+		else
+			for i=#players_list, 1, -1 do
+				local player = game.get_player(players_list[i])
+				if not (player and player.valid) then
+					table.remove(players_list, i)
+				end
+			end
 		end
 	end
 
@@ -1034,8 +1096,38 @@ end
 local function handle_custom_events()
 	script.on_event(custom_EasyAPI_events.on_new_team, on_new_team)
 	script.on_event(custom_EasyAPI_events.on_pre_deleted_team, on_pre_deleted_team)
-	-- script.on_event(custom_EasyAPI_events.on_player_joined_team, on_player_joined_team)
-	-- script.on_event(custom_EasyAPI_events.on_player_left_team, on_player_left_team)
+	script.on_event(custom_EasyAPI_events.on_player_joined_team, function(event)
+		local player = game.get_player(event.player_index)
+		if not (player and player.valid) then return end
+
+		local player_index = event.player_index
+		local players_list = first_team_players[player.force.index]
+		local is_new = true
+		for i = 1, #players_list do
+			if players_list[i] == player_index then
+				is_new = false
+				break
+			end
+		end
+
+		if is_new then
+			players_list[#players_list+1] = event.player_index
+		end
+
+		local prev_force = event.prev_force
+		if not (prev_force and prev_force.valid) then return end
+		players_list = first_team_players[prev_force.index]
+		if players_list then
+			for i = 1, #players_list do
+				if players_list[i] == player_index then
+					table.remove(players_list)
+					break
+				end
+			end
+		end
+	end)
+	-- script.on_event(custom_EasyAPI_events.on_player_left_team, function(event)
+	-- end)
 	-- custom_events.on_team_invited
 	-- custom_events.on_player_accepted_invite
 end
@@ -1068,7 +1160,16 @@ M.events = {
 	[defines.events.on_player_joined_game] = on_player_joined_game,
 	[defines.events.on_player_left_game] = on_player_left_game,
 	[defines.events.on_player_removed] = function(event)
-		player_invite_requests[event.player_index] = nil
+		local player_index = event.player_index
+		player_invite_requests[player_index] = nil
+
+		for _, players_list in pairs(first_team_players) do
+			for i=#players_list, 1, -1 do
+				if players_list[i] == player_index then
+					table.remove(players_list, i)
+				end
+			end
+		end
 	end,
 	[defines.events.on_player_changed_force] = function(event)
 		player_invite_requests[event.player_index] = {}
@@ -1094,7 +1195,7 @@ M.commands = {
 			local new_team = game.forces[cmd.parameter]
 			if not (new_team and new_team.valid) then
 				--TODO: change message
-				player.print({"error.error-message-box-title"})
+				player.print({"error.error-message-box-title"}, {1, 0, 0})
 				return
 			end
 
@@ -1102,7 +1203,7 @@ M.commands = {
 			local invite = invites[new_team.index]
 			if invite == nil then
 				--TODO: change message
-				player.print({"error.error-message-box-title"})
+				player.print({"error.error-message-box-title"}, {1, 0, 0})
 				return
 			else
 				local inviter = invite[2]
@@ -1182,9 +1283,9 @@ M.commands = {
 	end,
 	kick_teammate = function(cmd)
 		local player = game.get_player(cmd.player_index)
-		if player.forces.players[1] ~= player then
+		if get_is_leader(player) == false then
 			--TODO: change message
-			player.print({"error.error-message-box-title"})
+			player.print({"error.error-message-box-title"}, {1, 0, 0})
 		end
 
 		local target = game.get_player(cmd.parameter)
@@ -1192,7 +1293,7 @@ M.commands = {
 			player.print({"player-doesnt-exist", cmd.parameter})
 		elseif player.force ~= target.force then
 			--TODO: change message
-			player.print({"error.error-message-box-title"})
+			player.print({"error.error-message-box-title"}, {1, 0, 0})
 		end
 
 		if settings.global["bt_teleport_in_void_when_player_kicked_from_team"].value then
@@ -1200,11 +1301,12 @@ M.commands = {
 			target.teleport({player.index * 150, 0}, game.get_surface(void_surface_index))
 		else
 			-- WIP
-			player.force = "player"
+			target.force = "player"
 		end
 
 		if target.connected then
-			target.print("You have been kicked by \"" .. player.name .. "\" from team \"" .. player.force.name .. "\"")
+			player.force.print("Player \"" .. target.name .. "\" have been kicked by \"" .. player.name .. "\" from your team", {1, 1, 0})
+			target.print("You have been kicked by \"" .. player.name .. "\" from team \"" .. player.force.name .. "\"", {1, 1, 0})
 		end
 	end,
 	set_base = function(cmd)
