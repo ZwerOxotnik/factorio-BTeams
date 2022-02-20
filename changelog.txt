@@ -1,9 +1,15 @@
 ﻿---------------------------------------------------------------------------------------------------
+Version: 0.0.6
+Date: 2022-02-20
+  Bugfixes:
+    - Improved data stability
+    - Perhaps, it's more playable and stable now
+---------------------------------------------------------------------------------------------------
 Version: 0.0.5
 Date: 2022-02-20
   Bugfixes:
     - Improved the system
-    - Perhaps, it's more playable now
+    - WARNING: \"Better teams\" mod is raw and not ready for use yet!
 ---------------------------------------------------------------------------------------------------
 Version: 0.0.4
 Date: 2022-02-20

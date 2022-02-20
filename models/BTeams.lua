@@ -37,10 +37,6 @@ local void_surface_index
 
 ---@type number
 local void_force_index
-
---- <event name, event id>
----@type table<string, number>
-local custom_EasyAPI_events
 --#endregion
 
 
@@ -241,7 +237,9 @@ local function get_team_spawn_position(surface, team)
 		end
 	end
 	surface.request_to_generate_chunks(position, 2) -- Perhaps, it should be 9 insted of 2
-	position = surface.find_non_colliding_position("character", position, 100, 5)
+	position = surface.find_non_colliding_position(
+		"character", position, 100, 5
+	)
 	mod_data.spawn_offset = spawn_offset
 	return position
 end
@@ -675,9 +673,11 @@ local mod_settings = {
 	["bt_allow_bandits"] = function(value)
 		allow_bandits = value
 		if allow_bandits then
-			--TODO: improve (in some it can't be created)
+			--TODO: improve (in some cases it can't be created)
 			if game.forces.bandits == nil then
-				mod_data.bandits_force_index = game.create_force("bandits").index
+				local force = game.create_force("bandits")
+				mod_data.bandits_force_index = force.index
+				call("EasyAPI", "add_team", force)
 			end
 		end
 	end,
@@ -856,6 +856,9 @@ local GUIS = {
 			local prev_force_index = prev_force.index
 			local bandits_force_index = mod_data.bandits_force_index
 			if prev_force_index == void_force_index or
+				prev_force_index == player_force_index or
+				prev_force_index == enemy_force_index or
+				prev_force_index == neutral_force_index or
 				(bandits_force_index and prev_force_index == bandits_force_index)
 			then
 				--TODO: Improve
@@ -1020,7 +1023,6 @@ local function link_data()
 	forces_researched = mod_data.forces_researched
 	player_invite_requests = mod_data.player_invite_requests
 	force_invite_requests = mod_data.force_invite_requests
-	custom_EasyAPI_events = team_util.custom_events
 	void_surface_index = call("EasyAPI", "get_void_surface_index")
 	void_force_index = call("EasyAPI", "get_void_force_index")
 end
@@ -1030,20 +1032,25 @@ local function update_global_data()
 	mod_data = global.ST
 	mod_data.forces_researched = {}
 	mod_data.spawn_offset = mod_data.spawn_offset or default_spawn_offset
-	mod_data.force_settings = mod_data.force_settings or {}
-	mod_data.first_team_players = mod_data.first_team_players or {}
+	mod_data.force_settings = mod_data.force_settings or {
+		[player_force_index] = {},
+		[enemy_force_index] = {},
+		[neutral_force_index] = {}
+	}
+	mod_data.first_team_players = mod_data.first_team_players or {
+		[player_force_index] = {},
+		[enemy_force_index] = {},
+		[neutral_force_index] = {}
+	}
 	mod_data.last_invite_id = mod_data.last_invite_id or 0
 	mod_data.player_invite_requests = mod_data.player_invite_requests or {}
-	mod_data.force_invite_requests = mod_data.force_invite_requests or {}
+	mod_data.force_invite_requests = mod_data.force_invite_requests or {
+		[player_force_index] = {},
+		[enemy_force_index] = {},
+		[neutral_force_index] = {}
+	}
 
 	link_data()
-
-	if allow_bandits then
-		--TODO: recheck and improve
-		if game.forces.bandits == nil then
-			mod_data.bandits_force_index = game.create_force("bandits").index
-		end
-	end
 
 	count_forces_researched()
 
@@ -1094,9 +1101,9 @@ local function update_global_data()
 end
 
 local function handle_custom_events()
-	script.on_event(custom_EasyAPI_events.on_new_team, on_new_team)
-	script.on_event(custom_EasyAPI_events.on_pre_deleted_team, on_pre_deleted_team)
-	script.on_event(custom_EasyAPI_events.on_player_joined_team, function(event)
+	script.on_event(call("EasyAPI", "get_event_name", "on_new_team"), on_new_team)
+	script.on_event(call("EasyAPI", "get_event_name", "on_pre_deleted_team"), on_pre_deleted_team)
+	script.on_event(call("EasyAPI", "get_event_name", "on_player_joined_team"), function(event)
 		local player = game.get_player(event.player_index)
 		if not (player and player.valid) then return end
 
@@ -1126,7 +1133,7 @@ local function handle_custom_events()
 			end
 		end
 	end)
-	-- script.on_event(custom_EasyAPI_events.on_player_left_team, function(event)
+	-- script.on_event(call("EasyAPI", "get_event_name", "on_player_left_team"), function(event)
 	-- end)
 	-- custom_events.on_team_invited
 	-- custom_events.on_player_accepted_invite
@@ -1134,13 +1141,13 @@ end
 
 M.on_init = function()
 	team_util.on_init()
-	update_global_data()
 	handle_custom_events()
+	update_global_data()
 end
 M.on_load = function()
 	team_util.on_load()
-	link_data()
 	handle_custom_events()
+	link_data()
 end
 M.on_configuration_changed = update_global_data
 M.add_remote_interface = add_remote_interface
@@ -1168,6 +1175,16 @@ M.events = {
 				if players_list[i] == player_index then
 					table.remove(players_list, i)
 				end
+			end
+		end
+	end,
+	[defines.events.on_game_created_from_scenario] = function(event)
+		if allow_bandits then
+			--TODO: recheck and improve
+			if game.forces.bandits == nil then
+				local force = game.create_force("bandits")
+				mod_data.bandits_force_index = force.index
+				call("EasyAPI", "add_team", force)
 			end
 		end
 	end,
