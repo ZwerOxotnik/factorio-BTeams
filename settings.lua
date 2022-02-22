@@ -14,6 +14,7 @@ local runtime_settings = {
 	{type = "bool-setting",   name = "bt_auto_set_base", default_value = true},
 	{type = "bool-setting",   name = "bt_teleport_in_void_when_player_abandon_team", default_value = false},
 	{type = "bool-setting",   name = "bt_teleport_in_void_when_player_kicked_from_team", default_value = false},
+	{type = "bool-setting",   name = "bt_teleport_new_players_to_team_spawn_point", default_value = true},
 	{type = "bool-setting",   name = "bt_show_all_forces", default_value = true},
 	{type = "string-setting", name = "bt_default_surface", default_value = '', allow_blank = true, auto_trim = true},
 	{type = "string-setting", name = "bt_spawn_method", default_value = "compact", allowed_values = {"compact", "web", "mini-web"}}

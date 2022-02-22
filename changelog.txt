@@ -1,4 +1,14 @@
 ﻿---------------------------------------------------------------------------------------------------
+Version: 0.0.8
+Date: 2022-02-22
+  Features:
+    - Added setting: "Teleport new players to team spawn point" (Teleports by default)
+  Locale:
+    - Updated Russian locale
+  Notes:
+    - I'll make/add some features for PvE also
+    - Some localization and scripts will be moved into EasyAPI later
+---------------------------------------------------------------------------------------------------
 Version: 0.0.7
 Date: 2022-02-20
   Changes:

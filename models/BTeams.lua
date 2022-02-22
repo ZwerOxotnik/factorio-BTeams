@@ -899,7 +899,7 @@ local GUIS = {
 			if new_position then
 				player.teleport(new_position, surface)
 			else
-				player.print("No suitable place found for teleportation")
+				player.print({"gui-text-tags.gps-invalid"})
 			end
 		end
 		player.gui.screen.bt_teams_frame.destroy() --TODO: change
@@ -1103,11 +1103,30 @@ local function handle_custom_events()
 	script.on_event(call("EasyAPI", "get_event_name", "on_new_team"), on_new_team)
 	script.on_event(call("EasyAPI", "get_event_name", "on_pre_deleted_team"), on_pre_deleted_team)
 	script.on_event(call("EasyAPI", "get_event_name", "on_player_joined_team"), function(event)
-		local player = game.get_player(event.player_index)
+		local player_index = event.player_index
+		local player = game.get_player(player_index)
 		if not (player and player.valid) then return end
 
-		local player_index = event.player_index
-		local force_index = player.force.index
+		local player_force = player.force
+		if settings.global["bt_teleport_new_players_to_team_spawn_point"].value then
+			local surface = player.surface
+			local f_spawn_position = player_force.get_spawn_position(surface)
+			local character = player.character
+			if character == nil then
+				player.teleport(f_spawn_position, surface)
+			else
+				local new_position = surface.find_non_colliding_position(
+					character.name, f_spawn_position, 50, 1
+				)
+				if new_position then
+					player.teleport(new_position, surface)
+				else
+					player.print({"gui-text-tags.gps-invalid"})
+				end
+			end
+		end
+
+		local force_index = player_force.index
 		local bandits_force_index = mod_data.bandits_force_index
 		if force_index ~= player_force_index and
 			force_index ~= enemy_force_index and
@@ -1125,7 +1144,7 @@ local function handle_custom_events()
 			end
 
 			if is_new then
-				players_list[#players_list+1] = event.player_index
+				players_list[#players_list+1] = player_index
 			end
 		end
 
