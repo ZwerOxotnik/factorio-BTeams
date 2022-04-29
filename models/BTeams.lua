@@ -393,6 +393,40 @@ local function add_row_team(add, force, force_name, force_index, label_data)
 	end
 end
 
+local function add_row_force(add, force, force_name, force_index, label_data, teams)
+	label_data.caption = force_name
+	add(label_data)
+	if #force.players > 0 then
+		label_data.caption = #force.connected_players .. '/' .. #force.players
+		add(label_data)
+		add(EMPTY_WIDGET)
+	else
+		add(EMPTY_WIDGET)
+		add(EMPTY_WIDGET)
+	end
+	label_data.caption = forces_researched[force_index]
+	add(label_data)
+
+	if allow_switch_teams then
+		local bandits_force_index = mod_data.bandits_force_index
+		if #force.players == 0 or
+			force_index == player_force_index or
+			force_index == enemy_force_index or
+			(bandits_force_index and force_index == bandits_force_index)
+		then
+			local sub = add(FLOW)
+			sub.name = force_name -- Perhaps, it's not neccesary
+			if teams[force_index] then
+				sub.add(JOIN_TEAM_BUTTON).name = "bt_join_team"
+			end
+		else
+			add(EMPTY_WIDGET)
+		end
+	else
+		add(EMPTY_WIDGET)
+	end
+end
+
 ---@param table_gui table #GUIelement
 ---@param player PlayerIdentification
 ---@param teams? table
@@ -403,32 +437,34 @@ local function update_teams_table(table_gui, player, teams)
 	local label_data = {type = "label"}
 	local forces = game.forces
 	local add = table_gui.add
-	if show_all_forces then
-		local prohibit_forces = {
-			[player_force_index] = not allow_join_player_force or nil,
-			[enemy_force_index] = not allow_join_enemy_force or nil,
-			[neutral_force_index] = true,
-			[p_force_index] = true,
-			[void_force_index] = true
-		}
-		if mod_data.bandits_force_index and not allow_join_bandits_force then
-			prohibit_forces[mod_data.bandits_force_index] = true
-		end
-		for force_name, force in pairs(forces) do
-			local force_index = force.index
-			if not prohibit_forces[force_index] then
-				add_row_team(add, force, force_name, force_index, label_data)
-			end
-		end
-	else
-		if teams == nil then
-			teams = call("EasyAPI", "get_teams")
-		end
+
+	if teams == nil then
+		teams = call("EasyAPI", "get_teams")
+	end
+	if not show_all_forces then
 		for force_index, force_name in pairs(teams) do
 			if p_force_index ~= force_index then
 				local force = forces[force_index]
 				add_row_team(add, force, force_name, force_index, label_data)
 			end
+		end
+		return
+	end
+
+	local prohibit_forces = {
+		[player_force_index] = not allow_join_player_force or nil,
+		[enemy_force_index] = not allow_join_enemy_force or nil,
+		[neutral_force_index] = true,
+		[p_force_index] = true,
+		[void_force_index] = true
+	}
+	if mod_data.bandits_force_index and not allow_join_bandits_force then
+		prohibit_forces[mod_data.bandits_force_index] = true
+	end
+	for force_name, force in pairs(forces) do
+		local force_index = force.index
+		if not prohibit_forces[force_index] then
+			add_row_force(add, force, force_name, force_index, label_data, teams)
 		end
 	end
 end
