@@ -8,39 +8,42 @@ local team_util = require("__EasyAPI__/models/team_util")
 local mod_data
 
 --- {[force index] = count of researched techs}}
----@type table<number, number>
+---@type table<integer, integer>
 local forces_researched
 
 ---@class force_settings
----@type table<number, table<string, any>>
+---@type table<integer, table<string, any>>
 local force_settings
 
 ---{[force index] = {player index}}
 ---@class first_team_players
----@type table<number, table<number, number>>
+---@type table<integer, integer[]>
 local first_team_players
 
---- {force index = {[player index] = tick}}
----@type table<number, table<number, number>>
+--- {[force index] = {[player index] = tick}}
+---@type table<integer, table<integer, integer>>
 local force_invite_requests
 
 ---TODO: add events
+-- {[player index] = {[force index] = {invite id, LuaPlayer, tick of invitation}}}
 ---@class player_invite_requests
----@type table<number, any>
----@field [1] number # Invite id
----@field [2] LuaPlayer
----@field [3] number # Tick of inviting
+---@type table<integer, table<integer, table[]>>
+--- [1] integer # Invite id
+--- [2] LuaPlayer
+--- [3] integer # Tick of invitation
 local player_invite_requests
 
----@type number
+---@type integer
 local void_surface_index
 
----@type number
+---@type integer
 local void_force_index
 --#endregion
 
 
 --#region Constants
+local table = table
+local tonumber = tonumber
 local find = string.find
 local call = remote.call
 local player_force_index = 1
@@ -72,7 +75,7 @@ local CLOSE_BUTTON = {
 
 
 --#region Settings
----@type number
+---@type integer
 local max_teams = settings.global["EAPI_max_teams"].value
 
 ---@type boolean
@@ -102,17 +105,17 @@ local allow_join_enemy_force = settings.global["bt_allow_join_enemy_force"].valu
 ---@type boolean
 local show_all_forces = settings.global["bt_show_all_forces"].value
 
----@type string
+---@type integer
 local default_surface = settings.global["bt_default_surface"].value
 
----@type number
+---@type integer
 local default_spawn_offset = settings.global["bt_default_spawn_offset"].value
 --#endregion
 
 
 --#region utils
 
----@param player LuaPlayer
+---@param player table #LuaPlayer
 ---@return boolean
 local function get_is_leader(player)
 	return (first_team_players[player.force.index][1] == player)
@@ -188,8 +191,8 @@ local SPAWN_METHODS = {
 }
 local spawn_method = SPAWN_METHODS[settings.global["bt_spawn_method"].value]
 
----@param player PlayerIdentification
----@return SurfaceIdentification #SurfaceIdentification
+---@param player table #LuaPlayer
+---@return table #LuaSurface
 local function get_team_game_surface(player)
 	if default_surface == '' then
 		local surface = player.surface
@@ -199,12 +202,12 @@ local function get_team_game_surface(player)
 			return player.surface
 		end
 	else
-		surface = game.get_surface(default_surface) or game.get_surface(1)
+		return game.get_surface(default_surface) or game.get_surface(1)
 	end
 end
 
----@param surface LuaSurface
----@param team LuaForce
+---@param surface table #LuaSurface
+---@param team table #LuaForce
 ---@return table? #position
 local function get_team_spawn_position(surface, team)
 	local is_chunk_generated = surface.is_chunk_generated
@@ -220,12 +223,12 @@ local function get_team_spawn_position(surface, team)
 	}
 
 	-- Check position
-	local c_pos = function(_position)
-		if is_chunk_generated(_position) == false then
-			spawn_filter.position = _position
-			local near_team_entities = surface.find_entities_filtered(spawn_filter)
-			if #near_team_entities == 0 then
-				return _position
+	local find_entities_filtered = surface.find_entities_filtered
+	local c_pos = function(pos)
+		if is_chunk_generated(pos) == false then
+			spawn_filter.position = pos
+			if #find_entities_filtered(spawn_filter) == 0 then
+				return pos
 			end
 		end
 	end
@@ -244,7 +247,7 @@ local function get_team_spawn_position(surface, team)
 	return position
 end
 
----@param player LuaPlayer
+---@param player table #LuaPlayer
 local function set_team_base(player)
 	local target_surface = get_team_game_surface(player)
 	--TODO: improve!
@@ -428,7 +431,7 @@ local function add_row_force(add, force, force_name, force_index, label_data, te
 end
 
 ---@param table_gui table #GUIelement
----@param player PlayerIdentification
+---@param player table #LuaPlayer
 ---@param teams? table
 local function update_teams_table(table_gui, player, teams)
 	table_gui.clear()
@@ -1252,6 +1255,7 @@ M.events = {
 		end
 	end,
 	[defines.events.on_player_changed_force] = function(event)
+		-- Perphaps, it's not so good
 		player_invite_requests[event.player_index] = {}
 	end,
 	-- [defines.events.on_pre_player_removed] = on_pre_player_removed
@@ -1339,7 +1343,7 @@ M.commands = {
 			if inviter.valid then
 				inviter_name = inviter.name
 			end
-			message = message .. invite[1] .. ". In team\"" .. force.name .. "\" by player\"" .. inviter_name .. "\"\n"
+			message = message .. invite[1] .. ". In team \"" .. force.name .. "\" by player\"" .. inviter_name .. "\"\n"
 		end
 		player.print(message)
 	end,
@@ -1355,11 +1359,11 @@ M.commands = {
 	end,
 	invite_in_team = function(cmd)
 		local player = game.get_player(cmd.player_index)
-		player.print("WIP")
+		player.print("WIP. Use GUI instead.")
 	end,
 	join_team = function(cmd)
 		local player = game.get_player(cmd.player_index)
-		player.print("WIP")
+		player.print("WIP. Use GUI instead.")
 	end,
 	kick_teammate = function(cmd)
 		local player = game.get_player(cmd.player_index)
