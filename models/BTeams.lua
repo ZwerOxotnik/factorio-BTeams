@@ -118,7 +118,7 @@ local default_spawn_offset = settings.global["bt_default_spawn_offset"].value
 ---@param player table #LuaPlayer
 ---@return boolean
 local function get_is_leader(player)
-	return (first_team_players[player.force.index][1] == player)
+	return (first_team_players[player.force.index][1] == player.index)
 end
 
 ---@type table<string, function>
@@ -1171,7 +1171,7 @@ local function handle_custom_events()
 			force_index ~= enemy_force_index and
 			force_index ~= neutral_force_index and
 			force_index ~= void_force_index and
-			(bandits_force_index and force_index == bandits_force_index)
+			(bandits_force_index == nil or force_index ~= bandits_force_index)
 		then
 			local players_list = first_team_players[force_index]
 			local is_new = true
@@ -1189,7 +1189,7 @@ local function handle_custom_events()
 
 		local prev_force = event.prev_force
 		if not (prev_force and prev_force.valid) then return end
-		players_list = first_team_players[prev_force.index]
+		local players_list = first_team_players[prev_force.index]
 		if players_list then
 			for i = 1, #players_list do
 				if players_list[i] == player_index then
