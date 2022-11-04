@@ -196,3 +196,6 @@ Manifest.toml
 
 # lua2p debug files
 *.meta.lua
+
+# Factorio debug files
+.vscode/factorio/*

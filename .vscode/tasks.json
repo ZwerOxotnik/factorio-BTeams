@@ -17,13 +17,6 @@
 			"command": "luacheck",
 			"args": ["${file}"],
 			"group": "test"
-		},
-		{
-			"label": "Candran to Lua",
-			"type": "shell",
-			"command": "lua",
-			"args": [".scripts/CandranToLua.lua"],
-			"group": "build"
 		}
 	]
 }
