@@ -118,7 +118,12 @@ local default_spawn_offset = settings.global["bt_default_spawn_offset"].value
 ---@param player table #LuaPlayer
 ---@return boolean
 local function get_is_leader(player)
-	return (first_team_players[player.force.index][1] == player.index)
+	local players = first_team_players[player.force.index]
+	if players then
+		return (players[1] == player.index)
+	else
+		return false
+	end
 end
 
 ---@type table<string, function>
