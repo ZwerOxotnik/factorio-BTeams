@@ -907,7 +907,7 @@ local GUIS = {
 			then
 				--TODO: Improve
 			else
-				game.merge_forces(prev_force, player.force)
+				game.merge_forces(prev_force, game.forces.enemy)
 			end
 		end
 
@@ -1002,6 +1002,15 @@ local function on_player_joined_game(event)
 
 	destroy_team_gui(player)
 	destroy_teams_frame(player)
+
+	if player.online_time < 60 * 10 then
+		if settings.global["bt_auto_create_teams_gui_for_new_players"].value then
+			local screen = player.gui.screen
+			if screen.bt_teams_frame == nil then
+				switch_teams_gui(player)
+			end
+		end
+	end
 
 	if #player_invite_requests[player_index] > 0 then
 		if player.mod_settings["bt_ignore_invites"].value then
