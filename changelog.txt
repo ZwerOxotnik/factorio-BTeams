@@ -2,7 +2,7 @@
 Version: 0.0.13
 Date: 2022-11-05
   Features:
-    - Added new setting to show all teams for new players
+    - Added new setting to show teams GUI for new players
   Changes:
     - Added some translations for commands
     - If a player have a team without other player and creates another team, then previous team becomes enemy
