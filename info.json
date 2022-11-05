@@ -11,6 +11,7 @@
         "flib",
         "EasyAPI >= 0.9.6",
         "zk-lib >= 0.10.0",
-        "DBase >= 0.5.1"
+        "DBase >= 0.5.1",
+				"? gvv"
     ]
 }
