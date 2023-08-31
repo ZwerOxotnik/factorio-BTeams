@@ -2,6 +2,8 @@
 local M = {}
 
 local team_util = require("__EasyAPI__/models/team_util")
+local force_util = require("zk-lib/lualibs/control_stage/force-util")
+
 
 --#region Global data
 ---@type table<string, any>
@@ -75,41 +77,18 @@ local CLOSE_BUTTON = {
 
 
 --#region Settings
----@type integer
-local max_teams = settings.global["EAPI_max_teams"].value
-
----@type boolean
-local allow_rename_teams = settings.global["bt_allow_rename_teams"].value
-
----@type boolean
-local allow_create_team = settings.global["EAPI_allow_create_team"].value
-
----@type boolean
-local allow_abandon_teams = settings.global["bt_allow_abandon_teams"].value
-
----@type boolean
-local allow_switch_teams = settings.global["bt_allow_switch_teams"].value
-
----@type boolean
-local allow_bandits = settings.global["bt_allow_bandits"].value
-
----@type boolean
-local allow_join_bandits_force = settings.global["bt_allow_join_bandits_force"].value
-
----@type boolean
-local allow_join_player_force = settings.global["bt_allow_join_player_force"].value
-
----@type boolean
-local allow_join_enemy_force = settings.global["bt_allow_join_enemy_force"].value
-
----@type boolean
-local show_all_forces = settings.global["bt_show_all_forces"].value
-
----@type integer
-local default_surface = settings.global["bt_default_surface"].value
-
----@type integer
-local default_spawn_offset = settings.global["bt_default_spawn_offset"].value
+local _max_teams = settings.global["EAPI_max_teams"].value --[[@as integer]]
+local _allow_rename_teams = settings.global["bt_allow_rename_teams"].value --[[@as boolean]]
+local _allow_create_team = settings.global["EAPI_allow_create_team"].value --[[@as boolean]]
+local _allow_abandon_teams = settings.global["bt_allow_abandon_teams"].value --[[@as boolean]]
+local _allow_switch_teams = settings.global["bt_allow_switch_teams"].value --[[@as boolean]]
+local _allow_bandits = settings.global["bt_allow_bandits"].value --[[@as boolean]]
+local _allow_join_bandits_force = settings.global["bt_allow_join_bandits_force"].value --[[@as boolean]]
+local _allow_join_player_force = settings.global["bt_allow_join_player_force"].value --[[@as boolean]]
+local _allow_join_enemy_force = settings.global["bt_allow_join_enemy_force"].value --[[@as boolean]]
+local _show_all_forces = settings.global["bt_show_all_forces"].value --[[@as boolean]]
+local _default_surface = settings.global["bt_default_surface"].value --[[@as integer]]
+local _default_spawn_offset = settings.global["bt_default_spawn_offset"].value --[[@as integer]]
 --#endregion
 
 
@@ -138,10 +117,10 @@ local SPAWN_METHODS = {
 			or c_pos({ 0,-d})
 		if position then return position end
 
-		local step = d / default_spawn_offset
+		local step = d / _default_spawn_offset
 		for i = 2, step do
-			local x = default_spawn_offset * i
-			local y = d - default_spawn_offset * i
+			local x = _default_spawn_offset * i
+			local y = d - _default_spawn_offset * i
 			position = c_pos({x, y})
 			or c_pos({-x,-y})
 			or c_pos({ x,-y})
@@ -173,7 +152,7 @@ local SPAWN_METHODS = {
 			or c_pos({ 0,-d})
 		if position then return position end
 
-		local step = d / default_spawn_offset
+		local step = d / _default_spawn_offset
 		if step <= 1 then return end
 
 		position = c_pos({d, d})
@@ -183,7 +162,7 @@ local SPAWN_METHODS = {
 		if position then return position end
 
 		if step <= 3 then return end
-		local x = (d - default_spawn_offset) * 0.5
+		local x = (d - _default_spawn_offset) * 0.5
 		return c_pos({x, d})
 			or c_pos({-x,-d})
 			or c_pos({ x,-d})
@@ -196,10 +175,11 @@ local SPAWN_METHODS = {
 }
 local spawn_method = SPAWN_METHODS[settings.global["bt_spawn_method"].value]
 
+
 ---@param player table #LuaPlayer
 ---@return table #LuaSurface
 local function get_team_game_surface(player)
-	if default_surface == '' then
+	if _default_surface == '' then
 		local surface = player.surface
 		if surface.index == void_surface_index then
 			return game.get_surface(1)
@@ -207,9 +187,10 @@ local function get_team_game_surface(player)
 			return player.surface
 		end
 	else
-		return game.get_surface(default_surface) or game.get_surface(1)
+		return game.get_surface(_default_surface) or game.get_surface(1)
 	end
 end
+
 
 ---@param surface table #LuaSurface
 ---@param team table #LuaForce
@@ -241,7 +222,7 @@ local function get_team_spawn_position(surface, team)
 	while position == nil do
 		position = spawn_method(c_pos, spawn_offset)
 		if position == nil then
-			spawn_offset = spawn_offset + default_spawn_offset
+			spawn_offset = spawn_offset + _default_spawn_offset
 		end
 	end
 	surface.request_to_generate_chunks(position, 2) -- Perhaps, it should be 9 insted of 2
@@ -251,6 +232,7 @@ local function get_team_spawn_position(surface, team)
 	mod_data.spawn_offset = spawn_offset
 	return position
 end
+
 
 ---@param player table #LuaPlayer
 local function set_team_base(player)
@@ -319,18 +301,14 @@ local function set_team_base(player)
 	)
 end
 
+
 local function count_forces_researched()
 	for _, force in pairs(game.forces) do
-		local researched_count = 0
-		for _, tech in pairs(force.technologies) do
-			if tech.researched then
-				researched_count = researched_count + 1
-			end
-		end
-		forces_researched[force.index] = researched_count
+		forces_researched[force.index] = force_util.count_techs(force)
 	end
-	mod_data.labt_check_researched_tick = game.tick
+	mod_data.last_check_researched_tick = game.tick
 end
+
 
 local function make_teams_header(table)
 	local add = table.add
@@ -383,7 +361,7 @@ local function add_row_team(add, force, force_name, force_index, label_data)
 	label_data.caption = forces_researched[force_index]
 	add(label_data)
 
-	if allow_switch_teams then
+	if _allow_switch_teams then
 		local bandits_force_index = mod_data.bandits_force_index
 		if #force.players == 0 or
 			force_index == player_force_index or
@@ -415,7 +393,7 @@ local function add_row_force(add, force, force_name, force_index, label_data, te
 	label_data.caption = forces_researched[force_index]
 	add(label_data)
 
-	if allow_switch_teams then
+	if _allow_switch_teams then
 		local bandits_force_index = mod_data.bandits_force_index
 		if #force.players == 0 or
 			force_index == player_force_index or
@@ -449,7 +427,7 @@ local function update_teams_table(table_gui, player, teams)
 	if teams == nil then
 		teams = call("EasyAPI", "get_teams")
 	end
-	if not show_all_forces then
+	if not _show_all_forces then
 		for force_index, force_name in pairs(teams) do
 			if p_force_index ~= force_index then
 				local force = forces[force_index]
@@ -460,13 +438,13 @@ local function update_teams_table(table_gui, player, teams)
 	end
 
 	local prohibit_forces = {
-		[player_force_index] = not allow_join_player_force or nil,
-		[enemy_force_index] = not allow_join_enemy_force or nil,
+		[player_force_index] = not _allow_join_player_force or nil,
+		[enemy_force_index] = not _allow_join_enemy_force or nil,
 		[neutral_force_index] = true,
 		[p_force_index] = true,
 		[void_force_index] = true
 	}
-	if mod_data.bandits_force_index and not allow_join_bandits_force then
+	if mod_data.bandits_force_index and not _allow_join_bandits_force then
 		prohibit_forces[mod_data.bandits_force_index] = true
 	end
 	for force_name, force in pairs(forces) do
@@ -513,7 +491,7 @@ local function switch_team_gui(player)
 	local is_leader = get_is_leader(player)
 	local flow1 = shallow_frame.add(FLOW)
 	flow1.add(LABEL).caption = {'', "Team name", {"colon"}}
-	if allow_rename_teams and is_leader then
+	if _allow_rename_teams and is_leader then
 		flow1.add{type = "textfield", name = "bt_force_name", text = force_name}.style.width = 100
 		local button = flow1.add{type = "button", name = "bt_rename_team", style = "zk_action_button_dark", caption = ">"}
 		button.style.font = "default-dialog-button"
@@ -524,7 +502,7 @@ local function switch_team_gui(player)
 		label.name = "bt_force_name"
 		label.caption = force_name
 	end
-	if allow_abandon_teams then
+	if _allow_abandon_teams then
 		local button = flow1.add(JOIN_TEAM_BUTTON)
 		button.name = "bt_abandon_team"
 		button.caption = "abandon"
@@ -629,7 +607,7 @@ local function switch_teams_gui(player)
 	shallow_frame.style.padding = 12
 
 	local teams = call("EasyAPI", "get_teams")
-	if allow_create_team and #game.forces < 64 and #teams < max_teams then
+	if _allow_create_team and #game.forces < 64 and #teams < _max_teams then
 		local create_team_flow = shallow_frame.add{type = "flow"}
 		create_team_flow.add{type = "label", caption = {'', "Create team", {"colon"}}}
 		create_team_flow.add{type = "textfield", name = "team_name"}
@@ -650,7 +628,7 @@ local function switch_teams_gui(player)
 	teams_table.draw_vertical_lines = true
 	teams_table.style.top_margin = -3
 
-	if mod_data.labt_check_researched_tick > game.tick + 36000 then
+	if mod_data.last_check_researched_tick > game.tick + 36000 then
 		count_forces_researched()
 	end
 	update_teams_table(teams_table, player, teams)
@@ -712,14 +690,14 @@ local function on_forces_merged(event)
 end
 
 local mod_settings = {
-	["EAPI_allow_create_team"] = function(value) allow_create_team = value end,
-	["EAPI_max_teams"] = function(value) max_teams = value end,
-	["bt_allow_abandon_teams"] = function(value) allow_abandon_teams = value end,
-	["bt_allow_rename_teams"] = function(value) allow_rename_teams = value end,
-	["bt_allow_switch_teams"] = function(value) allow_switch_teams = value end,
+	["EAPI_allow_create_team"] = function(value) _allow_create_team = value end,
+	["EAPI_max_teams"] = function(value) _max_teams = value end,
+	["bt_allow_abandon_teams"] = function(value) _allow_abandon_teams = value end,
+	["bt_allow_rename_teams"] = function(value) _allow_rename_teams = value end,
+	["bt_allow_switch_teams"] = function(value) _allow_switch_teams = value end,
 	["bt_allow_bandits"] = function(value)
-		allow_bandits = value
-		if allow_bandits then
+		_allow_bandits = value
+		if _allow_bandits then
 			--TODO: improve (in some cases it can't be created)
 			if game.forces.bandits == nil then
 				local force = game.create_force("bandits")
@@ -728,13 +706,13 @@ local mod_settings = {
 			end
 		end
 	end,
-	["bt_allow_join_bandits_force"] = function(value) allow_join_bandits_force = value end,
-	["bt_allow_join_player_force"] = function(value) allow_join_player_force = value end,
-	["bt_allow_join_enemy_force"] = function(value) allow_join_enemy_force = value end,
-	["bt_show_all_forces"] = function(value) show_all_forces = value end,
-	["bt_default_surface"] = function(value) default_surface = value end,
+	["bt_allow_join_bandits_force"] = function(value) _allow_join_bandits_force = value end,
+	["bt_allow_join_player_force"] = function(value) _allow_join_player_force = value end,
+	["bt_allow_join_enemy_force"] = function(value) _allow_join_enemy_force = value end,
+	["bt_show_all_forces"] = function(value) _show_all_forces = value end,
+	["bt_default_surface"] = function(value) _default_surface = value end,
 	["bt_default_spawn_offset"] = function(value)
-		default_spawn_offset = value
+		_default_spawn_offset = value
 		mod_data.spawn_offset = math.floor(mod_data.spawn_offset/value) * value
 	end,
 	["bt_spawn_method"] = function(value) spawn_method = SPAWN_METHODS[value] end
@@ -879,7 +857,7 @@ local GUIS = {
 		update_teams_table(element.parent.parent.shallow_frame.table_frame.teams_table, player)
 	end,
 	bt_create_team = function(element, player)
-		if not allow_create_team then
+		if not _allow_create_team then
 			player.print("Players can't create teams by map settings")
 			return
 		end
@@ -949,6 +927,7 @@ local GUIS = {
 		player.gui.screen.bt_teams_frame.destroy() --TODO: change
 	end
 }
+---@param event on_gui_click
 local function on_gui_click(event)
 	local element = event.element
 	if not (element and element.valid) then return end
@@ -959,6 +938,8 @@ local function on_gui_click(event)
 	end
 end
 
+
+---@param event on_gui_elem_changed
 local function on_gui_elem_changed(event)
 	local element = event.element
 	if not (element and element.valid) then return end
@@ -982,9 +963,11 @@ local function on_gui_elem_changed(event)
 	end
 end
 
+
+---@param event on_force_created
 local function on_force_created(event)
 	local force = event.force
-	if not (force and force.valid) then return end
+	if not force.valid then return end
 
 	local researched_count = 0
 	for _, tech in pairs(force.technologies) do
@@ -995,6 +978,8 @@ local function on_force_created(event)
 	forces_researched[force.index] = researched_count
 end
 
+
+---@param event on_player_joined_game
 local function on_player_joined_game(event)
 	local player_index = event.player_index
 	local player = game.get_player(player_index)
@@ -1020,6 +1005,8 @@ local function on_player_joined_game(event)
 	end
 end
 
+
+---@param event on_player_left_game
 local function on_player_left_game(event)
 	local player = game.get_player(event.player_index)
 	if not (player and player.valid) then return end
@@ -1028,6 +1015,8 @@ local function on_player_left_game(event)
 	destroy_teams_frame(player)
 end
 
+
+---@param event on_pre_player_removed
 local function on_pre_player_removed(event)
 	local force_index = game.get_player(event.player_index).force.index
 	--TODO: delete invite in invite_requests etc
@@ -1083,7 +1072,7 @@ local function update_global_data()
 	global.ST = global.ST or {}
 	mod_data = global.ST
 	mod_data.forces_researched = {}
-	mod_data.spawn_offset = mod_data.spawn_offset or default_spawn_offset
+	mod_data.spawn_offset = mod_data.spawn_offset or _default_spawn_offset
 	mod_data.force_settings = mod_data.force_settings or {
 		[player_force_index] = {},
 		[enemy_force_index] = {},
@@ -1259,7 +1248,7 @@ M.events = {
 		end
 	end,
 	[defines.events.on_game_created_from_scenario] = function(event)
-		if allow_bandits then
+		if _allow_bandits then
 			--TODO: recheck and improve
 			if game.forces.bandits == nil then
 				local force = game.create_force("bandits")
