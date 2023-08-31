@@ -176,6 +176,32 @@ local SPAWN_METHODS = {
 local spawn_method = SPAWN_METHODS[settings.global["bt_spawn_method"].value]
 
 
+---@param player LuaPlayer
+function abandon_team(player)
+	local prev_force = player.force
+
+	if settings.global["bt_teleport_in_void_when_player_abandon_team"].value then
+		if prev_force.name == "void" then return end
+		player.force = "void"
+		player.teleport({player.index * 150, 0}, game.get_surface(void_surface_index))
+	else
+		if prev_force.name == "player" then return end
+		-- WIP
+		player.force = "player"
+	end
+
+	if #prev_force.players == 0 then
+		local forces = game.forces
+		if prev_force == forces.neutral then return end
+		if prev_force == forces.enemy then return end
+		if prev_force == forces.player then return end
+		if void_force_index and prev_force.index == void_force_index then return end
+		if mod_data.bandits_force_index and prev_force.index == mod_data.bandits_force_index then return end
+		game.merge_forces(prev_force, forces.neutral)
+	end
+end
+
+
 ---@param player table #LuaPlayer
 ---@return table #LuaSurface
 local function get_team_game_surface(player)
@@ -892,13 +918,7 @@ local GUIS = {
 		set_team_base(player)
 	end,
 	bt_abandon_team = function(element, player)
-		if settings.global["bt_teleport_in_void_when_player_abandon_team"].value then
-			player.force = "void"
-			player.teleport({player.index * 150, 0}, game.get_surface(void_surface_index))
-		else
-			-- WIP
-			player.force = "player"
-		end
+		abandon_team(player)
 		player.gui.screen.bt_show_team_frame.destroy()
 	end,
 	bt_join_team = function(element, player)
@@ -1352,13 +1372,7 @@ M.commands = {
 	end,
 	abandon_team = function(cmd)
 		local player = game.get_player(cmd.player_index)
-		if settings.global["bt_teleport_in_void_when_player_abandon_team"].value then
-			player.force = "void"
-			player.teleport({player.index * 150, 0}, game.get_surface(void_surface_index))
-		else
-			-- WIP
-			player.force = "player"
-		end
+		abandon_team(player)
 	end,
 	invite_in_team = function(cmd)
 		local player = game.get_player(cmd.player_index)

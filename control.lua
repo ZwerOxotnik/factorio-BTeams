@@ -1,6 +1,15 @@
 if script.level.campaign_name then return end -- Don't init if it's a campaign
 
-local event_handler = require("__zk-lib__/static-libs/lualibs/event_handler_vZO.lua")
+
+local event_handler
+if script.active_mods["zk-lib"] then
+	-- Same as Factorio "event_handler", but slightly better performance
+	local is_ok, zk_event_handler = pcall(require, "__zk-lib__/static-libs/lualibs/event_handler_vZO.lua")
+	if is_ok then
+		event_handler = zk_event_handler
+	end
+end
+event_handler = event_handler or require("event_handler")
 
 
 ---@type table<string, module>

@@ -1,6 +1,6 @@
 {
     "name": "BTeams",
-    "version": "0.0.13",
+    "version": "0.0.14",
     "factorio_version": "1.1",
     "title": "Better teams (extension for EasyAPI)[PRE-ALPHA]",
     "author": "ZwerOxotnik",
@@ -9,7 +9,7 @@
     "description": "see locale/*",
     "dependencies": [
         "flib",
-        "EasyAPI >= 0.9.6",
+        "EasyAPI >= 0.11.5",
         "zk-lib >= 0.10.0",
         "DBase >= 0.5.1",
         "? gvv"
