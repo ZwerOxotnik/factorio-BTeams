@@ -1,45 +1,56 @@
 ---@class BT : module
 local M = {}
 
+
 local team_util = require("__EasyAPI__/models/team_util")
 local force_util = require("zk-lib/lualibs/control_stage/force-util")
+local player_util = require("zk-lib/lualibs/control_stage/player-util")
 
 
 --#region Global data
 ---@type table<string, any>
-local mod_data
+local _mod_data
 
 --- {[force index] = count of researched techs}}
----@type table<integer, integer>
-local forces_researched
+---@type table<uint, integer>
+local _forces_researched
 
 ---@class force_settings
----@type table<integer, table<string, any>>
-local force_settings
+---@type table<uint, table<string, any>>
+local _team_settings
+
+
+---@class teams_main_base_structure_data
+---@field force LuaForce
+---@field entity LuaEntity
+
+---@type table<uint, teams_main_base_structure_data>
+local _teams_main_base_structure
+
 
 ---{[force index] = {player index}}
 ---@class first_team_players
 ---@type table<integer, integer[]>
-local first_team_players
+local _first_team_players
 
 --- {[force index] = {[player index] = tick}}
----@type table<integer, table<integer, integer>>
-local force_invite_requests
+---@type table<uint, table<integer, integer>>
+local _force_invite_requests
 
 ---TODO: add events
 -- {[player index] = {[force index] = {invite id, LuaPlayer, tick of invitation}}}
 ---@class player_invite_requests
----@type table<integer, table<integer, table[]>>
+---@type table<uint, table<uint, table[]>>
 --- [1] integer # Invite id
 --- [2] LuaPlayer
 --- [3] integer # Tick of invitation
-local player_invite_requests
+local _player_invite_requests
 
 ---@type integer
-local void_surface_index
+local _void_surface_index
 
 ---@type integer
-local void_force_index
+local _void_force_index
 --#endregion
 
 
@@ -51,6 +62,7 @@ local call = remote.call
 local player_force_index = 1
 local enemy_force_index = 2
 local neutral_force_index = 3
+local DESTROY_PARAM = {raise_destroy = true} --[[@as LuaEntity.destroy_param]]
 local LABEL = {type = "label"}
 local FLOW = {type = "flow"}
 local EMPTY_WIDGET = {type = "empty-widget"}
@@ -97,7 +109,7 @@ local _default_spawn_offset = settings.global["bt_default_spawn_offset"].value -
 ---@param player table #LuaPlayer
 ---@return boolean
 local function get_is_leader(player)
-	local players = first_team_players[player.force.index]
+	local players = _first_team_players[player.force.index]
 	if players then
 		return (players[1] == player.index)
 	else
@@ -105,7 +117,7 @@ local function get_is_leader(player)
 	end
 end
 
----@type table<string, function>
+---@type table<string, fun(c_pos: function, d: number): table?>
 local SPAWN_METHODS = {
 	---@param c_pos function
 	---@param d number #distance
@@ -173,7 +185,7 @@ local SPAWN_METHODS = {
 			or c_pos({-d, x})
 	end
 }
-local spawn_method = SPAWN_METHODS[settings.global["bt_spawn_method"].value]
+_spawn_method = SPAWN_METHODS[settings.global["bt_spawn_method"].value]
 
 
 ---@param player LuaPlayer
@@ -183,7 +195,7 @@ function abandon_team(player)
 	if settings.global["bt_teleport_in_void_when_player_abandon_team"].value then
 		if prev_force.name == "void" then return end
 		player.force = "void"
-		player.teleport({player.index * 150, 0}, game.get_surface(void_surface_index))
+		player.teleport({player.index * 150, 0}, game.get_surface(_void_surface_index))
 	else
 		if prev_force.name == "player" then return end
 		-- WIP
@@ -195,8 +207,8 @@ function abandon_team(player)
 		if prev_force == forces.neutral then return end
 		if prev_force == forces.enemy then return end
 		if prev_force == forces.player then return end
-		if void_force_index and prev_force.index == void_force_index then return end
-		if mod_data.bandits_force_index and prev_force.index == mod_data.bandits_force_index then return end
+		if _void_force_index and prev_force.index == _void_force_index then return end
+		if _mod_data.bandits_force_index and prev_force.index == _mod_data.bandits_force_index then return end
 		game.merge_forces(prev_force, forces.neutral)
 	end
 end
@@ -207,7 +219,7 @@ end
 local function get_team_game_surface(player)
 	if _default_surface == '' then
 		local surface = player.surface
-		if surface.index == void_surface_index then
+		if surface.index == _void_surface_index then
 			return game.get_surface(1)
 		else
 			return player.surface
@@ -223,7 +235,7 @@ end
 ---@return table? #position
 local function get_team_spawn_position(surface, team)
 	local is_chunk_generated = surface.is_chunk_generated
-	local spawn_offset = mod_data.spawn_offset
+	local spawn_offset = _mod_data.spawn_offset
 	local position
 
 	local spawn_filter = {
@@ -246,7 +258,7 @@ local function get_team_spawn_position(surface, team)
 	end
 
 	while position == nil do
-		position = spawn_method(c_pos, spawn_offset)
+		position = _spawn_method(c_pos, spawn_offset)
 		if position == nil then
 			spawn_offset = spawn_offset + _default_spawn_offset
 		end
@@ -255,7 +267,7 @@ local function get_team_spawn_position(surface, team)
 	position = surface.find_non_colliding_position(
 		"character", position, 100, 5
 	)
-	mod_data.spawn_offset = spawn_offset
+	_mod_data.spawn_offset = spawn_offset
 	return position
 end
 
@@ -264,7 +276,7 @@ end
 local function set_team_base(player)
 	local target_surface = get_team_game_surface(player)
 	--TODO: improve!
-	if target_surface.index == void_surface_index then
+	if target_surface.index == _void_surface_index then
 		--TODO: change message
 		player.print("It's not possible to create bases in void surface")
 	end
@@ -275,14 +287,18 @@ local function set_team_base(player)
 		return
 	end
 
+	if _mod_data.bandits_force_index and player_force.index == _mod_data.bandits_force_index then
+		player_force.print("Your team can't have a base", {1, 0, 0})
+		return
+	end
+
 	local new_position
 	if settings.global["bt_auto_set_base"].value then
 		new_position = get_team_spawn_position(target_surface, player_force)
 		if new_position == nil then
-			player.print("no suitable place found for base")
+			player.print("no suitable place found for base. Try again later.")
 			return
 		end
-		player.teleport(new_position, target_surface)
 	else
 		local near_team_entities = target_surface.find_entities_filtered({
 			position = player.position,
@@ -290,7 +306,7 @@ local function set_team_base(player)
 			radius = 300,
 			force = {player_force, "enemy", "neutral"},
 			invert = true
-		})
+		}) -- TODO: change
 		if #near_team_entities == 0 then
 			new_position = player.position
 		else
@@ -316,6 +332,26 @@ local function set_team_base(player)
 		end
 	end
 
+
+	if settings.global["bt_create_main_base_entity"].value then
+		-- TODO: create silo
+		local entity = _teams_main_base_structure[player_force.index]
+		if not (entity and entity.valid) then
+			entity = target_surface.create_entity{
+				name = "rocket-silo",
+				position = new_position,
+				force = player_force
+			} -- perhaps, wrong position
+			local id = script.register_on_entity_destroyed(entity)
+			_teams_main_base_structure[id] = {
+				force  = player_force,
+				entity = entity
+			}
+		end
+	end
+
+	player_util.teleport_safely(player, target_surface, new_position)
+
 	--TODO: change message
 	game.print(
 		"New base has been established in the game",
@@ -330,9 +366,9 @@ end
 
 local function count_forces_researched()
 	for _, force in pairs(game.forces) do
-		forces_researched[force.index] = force_util.count_techs(force)
+		_forces_researched[force.index] = force_util.count_techs(force)
 	end
-	mod_data.last_check_researched_tick = game.tick
+	_mod_data.last_check_researched_tick = game.tick
 end
 
 
@@ -373,7 +409,7 @@ local function add_row_team(add, force, force_name, force_index, label_data)
 	if #force.players > 0 then
 		label_data.caption = #force.connected_players .. '/' .. #force.players
 		add(label_data)
-		local player_index = first_team_players[force.index][1]
+		local player_index = _first_team_players[force.index][1]
 		if player_index then
 			label_data.caption = game.get_player(player_index).name
 			add(label_data)
@@ -384,11 +420,11 @@ local function add_row_team(add, force, force_name, force_index, label_data)
 		add(EMPTY_WIDGET)
 		add(EMPTY_WIDGET)
 	end
-	label_data.caption = forces_researched[force_index]
+	label_data.caption = _forces_researched[force_index]
 	add(label_data)
 
 	if _allow_switch_teams then
-		local bandits_force_index = mod_data.bandits_force_index
+		local bandits_force_index = _mod_data.bandits_force_index
 		if #force.players == 0 or
 			force_index == player_force_index or
 			force_index == enemy_force_index or
@@ -416,11 +452,11 @@ local function add_row_force(add, force, force_name, force_index, label_data, te
 		add(EMPTY_WIDGET)
 		add(EMPTY_WIDGET)
 	end
-	label_data.caption = forces_researched[force_index]
+	label_data.caption = _forces_researched[force_index]
 	add(label_data)
 
 	if _allow_switch_teams then
-		local bandits_force_index = mod_data.bandits_force_index
+		local bandits_force_index = _mod_data.bandits_force_index
 		if #force.players == 0 or
 			force_index == player_force_index or
 			force_index == enemy_force_index or
@@ -468,10 +504,10 @@ local function update_teams_table(table_gui, player, teams)
 		[enemy_force_index] = not _allow_join_enemy_force or nil,
 		[neutral_force_index] = true,
 		[p_force_index] = true,
-		[void_force_index] = true
+		[_void_force_index] = true
 	}
-	if mod_data.bandits_force_index and not _allow_join_bandits_force then
-		prohibit_forces[mod_data.bandits_force_index] = true
+	if _mod_data.bandits_force_index and not _allow_join_bandits_force then
+		prohibit_forces[_mod_data.bandits_force_index] = true
 	end
 	for force_name, force in pairs(forces) do
 		local force_index = force.index
@@ -654,7 +690,7 @@ local function switch_teams_gui(player)
 	teams_table.draw_vertical_lines = true
 	teams_table.style.top_margin = -3
 
-	if mod_data.last_check_researched_tick > game.tick + 36000 then
+	if _mod_data.last_check_researched_tick > game.tick + 36000 then
 		count_forces_researched()
 	end
 	update_teams_table(teams_table, player, teams)
@@ -681,16 +717,20 @@ end
 
 --#region Functions of events
 
-local function on_player_created(event)
+
+---@param event on_player_created
+function M.on_player_created(event)
 	local player_index = event.player_index
 	local player = game.get_player(player_index)
 	if not (player and player.valid) then return end
 
-	player_invite_requests[player_index] = {}
+	_player_invite_requests[player_index] = {}
 	create_left_relative_gui(player)
 end
 
-local function on_forces_merging(event)
+
+---@param event on_forces_merging
+function M.on_forces_merging(event)
 	local source = event.source
 	for _, player in pairs(source.connected_players) do
 		if player.valid then
@@ -702,18 +742,21 @@ local function on_forces_merging(event)
 	source_index = source.index
 	for player_index, player in pairs(game.players) do
 		if player.valid then
-			player_invite_requests[player_index][source_index] = nil
+			_player_invite_requests[player_index][source_index] = nil
 		end
 	end
 end
 
-local function on_forces_merged(event)
+
+---@param event on_forces_merged
+function M.on_forces_merged(event)
 	local index = event.source_index
-	force_settings[index] = nil
-	forces_researched[index] = nil
-	first_team_players[index] = nil
-	force_invite_requests[index] = nil
+	_team_settings[index] = nil
+	_forces_researched[index] = nil
+	_first_team_players[index] = nil
+	_force_invite_requests[index] = nil
 end
+
 
 local mod_settings = {
 	["EAPI_allow_create_team"] = function(value) _allow_create_team = value end,
@@ -727,7 +770,7 @@ local mod_settings = {
 			--TODO: improve (in some cases it can't be created)
 			if game.forces.bandits == nil then
 				local force = game.create_force("bandits")
-				mod_data.bandits_force_index = force.index
+				_mod_data.bandits_force_index = force.index
 				call("EasyAPI", "add_team", force)
 			end
 		end
@@ -739,11 +782,12 @@ local mod_settings = {
 	["bt_default_surface"] = function(value) _default_surface = value end,
 	["bt_default_spawn_offset"] = function(value)
 		_default_spawn_offset = value
-		mod_data.spawn_offset = math.floor(mod_data.spawn_offset/value) * value
+		_mod_data.spawn_offset = math.floor(_mod_data.spawn_offset/value) * value
 	end,
-	["bt_spawn_method"] = function(value) spawn_method = SPAWN_METHODS[value] end
+	["bt_spawn_method"] = function(value) _spawn_method = SPAWN_METHODS[value] end
 }
-local function on_runtime_mod_setting_changed(event)
+---@param event on_runtime_mod_setting_changed
+function M.on_runtime_mod_setting_changed(event)
 	local setting_name = event.setting
 	local f = mod_settings[setting_name]
 	if f then f(settings.global[setting_name].value) end
@@ -818,7 +862,7 @@ local GUIS = {
 
 		if settings.global["bt_teleport_in_void_when_player_kicked_from_team"].value then
 			target.force = "void"
-			target.teleport({player.index * 150, 0}, game.get_surface(void_surface_index))
+			target.teleport({player.index * 150, 0}, game.get_surface(_void_surface_index))
 		else
 			-- WIP
 			target.force = "player"
@@ -849,12 +893,12 @@ local GUIS = {
 			player.print("Player \"" .. target.name .. "\" in your team already.")
 			return
 		end
-		local target_invites = player_invite_requests[target.index]
+		local target_invites = _player_invite_requests[target.index]
 		local invite = target_invites[player_force.index]
 		if invite == nil then
-			mod_data.last_invite_id = mod_data.last_invite_id + 1
+			_mod_data.last_invite_id = _mod_data.last_invite_id + 1
 			target_invites[player_force.index] = {
-				mod_data.last_invite_id,
+				_mod_data.last_invite_id,
 				player,
 				game.tick
 			}
@@ -865,12 +909,12 @@ local GUIS = {
 
 		player.print("You invited \"" .. target.name .. "\" in your team")
 		if target.connected then
-			target.print("Player \"" .. player.name .. "\" invited you in team \"" .. player_force.name .. "\". (In order to accept, write: /accept-team-invite " .. mod_data.last_invite_id .. ")")
+			target.print("Player \"" .. player.name .. "\" invited you in team \"" .. player_force.name .. "\". (In order to accept, write: /accept-team-invite " .. _mod_data.last_invite_id .. ")")
 		end
 	end,
 	bt_customize_team = function(element, player)
 		local force_index = player.force.index
-		if force_settings[force_index] == nil then
+		if _team_settings[force_index] == nil then
 			player.print("This force doesn't support this action")
 			return
 		end
@@ -902,8 +946,8 @@ local GUIS = {
 		player.force = new_team
 		if #prev_force.players == 0 then
 			local prev_force_index = prev_force.index
-			local bandits_force_index = mod_data.bandits_force_index
-			if prev_force_index == void_force_index or
+			local bandits_force_index = _mod_data.bandits_force_index
+			if prev_force_index == _void_force_index or
 				prev_force_index == player_force_index or
 				prev_force_index == enemy_force_index or
 				prev_force_index == neutral_force_index or
@@ -948,7 +992,7 @@ local GUIS = {
 	end
 }
 ---@param event on_gui_click
-local function on_gui_click(event)
+function M.on_gui_click(event)
 	local element = event.element
 	if not (element and element.valid) then return end
 
@@ -960,7 +1004,7 @@ end
 
 
 ---@param event on_gui_elem_changed
-local function on_gui_elem_changed(event)
+function M.on_gui_elem_changed(event)
 	local element = event.element
 	if not (element and element.valid) then return end
 	local player = game.get_player(event.player_index)
@@ -985,7 +1029,7 @@ end
 
 
 ---@param event on_force_created
-local function on_force_created(event)
+function M.on_force_created(event)
 	local force = event.force
 	if not force.valid then return end
 
@@ -995,12 +1039,12 @@ local function on_force_created(event)
 			researched_count = researched_count + 1
 		end
 	end
-	forces_researched[force.index] = researched_count
+	_forces_researched[force.index] = researched_count
 end
 
 
 ---@param event on_player_joined_game
-local function on_player_joined_game(event)
+function M.on_player_joined_game(event)
 	local player_index = event.player_index
 	local player = game.get_player(player_index)
 	if not (player and player.valid) then return end
@@ -1017,22 +1061,42 @@ local function on_player_joined_game(event)
 		end
 	end
 
-	if #player_invite_requests[player_index] > 0 then
+	if #_player_invite_requests[player_index] > 0 then
 		if player.mod_settings["bt_ignore_invites"].value then
 			--TODO: add localization
-			player.print("You have " .. #player_invite_requests[player_index] .. " invites in teams")
+			player.print("You have " .. #_player_invite_requests[player_index] .. " invites in teams")
 		end
 	end
 end
 
 
 ---@param event on_player_left_game
-local function on_player_left_game(event)
+function M.on_player_left_game(event)
 	local player = game.get_player(event.player_index)
 	if not (player and player.valid) then return end
 
 	destroy_team_gui(player)
 	destroy_teams_frame(player)
+end
+
+
+---@param event on_entity_destroyed
+function M.on_entity_destroyed(event)
+	local data = _teams_main_base_structure[event.registration_number]
+	if not data then return end
+
+	local force = data.force
+	local is_base = call("EasyAPI", "has_team_base_by_index", force.index)
+	if not is_base then
+		_teams_main_base_structure[event.registration_number] = nil
+		return
+	end
+
+	script.raise_event(call("EasyAPI", "get_event_name", "on_team_lost"), {
+		force = force
+	})
+	call("EasyAPI", "remove_team", force.index, false)
+	_teams_main_base_structure[event.registration_number] = nil
 end
 
 
@@ -1044,16 +1108,32 @@ end
 
 local function on_new_team(event)
 	local index = event.force.index
-	force_settings[index] = {}
-	first_team_players[index] = {}
-	force_invite_requests[index] = {}
+	_team_settings[index] = {}
+	_first_team_players[index] = {}
+	_force_invite_requests[index] = {}
 end
 
 local function on_pre_deleted_team(event)
-	local index = event.force.index
-	force_settings[index] = nil
-	first_team_players[index] = nil
-	force_invite_requests[index] = nil
+	local force = event.force
+	local index = force.index
+	_team_settings[index] = nil
+	_first_team_players[index] = nil
+	_force_invite_requests[index] = nil
+
+	for id, data in pairs(_teams_main_base_structure) do
+		local entity = data.entity
+		if not data.force.valid then
+			_teams_main_base_structure[id] = nil
+			if entity.valid then
+				entity.destroy(DESTROY_PARAM)
+			end
+		elseif not entity.valid then
+			_teams_main_base_structure[id] = nil
+		elseif data.force == force then
+			_teams_main_base_structure[id] = nil
+			data.destroy(DESTROY_PARAM)
+		end
+	end
 end
 
 --#endregion
@@ -1066,46 +1146,48 @@ local function add_remote_interface()
 	remote.remove_interface("BTeams") -- For safety
 	remote.add_interface("BTeams", {
 		get_mod_data = function()
-			return mod_data
+			return _mod_data
 		end,
 		get_bandits_force_index = function()
-			return mod_data.bandits_force_index
+			return _mod_data.bandits_force_index
 		end,
 		get_spawn_offset = function()
-			return mod_data.spawn_offset
+			return _mod_data.spawn_offset
 		end
 	})
 end
 
 local function link_data()
-	mod_data = global.ST
-	force_settings = mod_data.force_settings
-	first_team_players = mod_data.first_team_players
-	forces_researched = mod_data.forces_researched
-	player_invite_requests = mod_data.player_invite_requests
-	force_invite_requests = mod_data.force_invite_requests
-	void_surface_index = call("EasyAPI", "get_void_surface_index")
-	void_force_index = call("EasyAPI", "get_void_force_index")
+	_mod_data = global.ST
+	_team_settings = _mod_data.force_settings
+	_first_team_players = _mod_data.first_team_players
+	_forces_researched = _mod_data.forces_researched
+	_player_invite_requests = _mod_data.player_invite_requests
+	_force_invite_requests = _mod_data.force_invite_requests
+	_teams_main_base_structure = _mod_data.teams_main_base
+	_void_surface_index = call("EasyAPI", "get_void_surface_index")
+	_void_force_index = call("EasyAPI", "get_void_force_index")
 end
 
 local function update_global_data()
 	global.ST = global.ST or {}
-	mod_data = global.ST
-	mod_data.forces_researched = {}
-	mod_data.spawn_offset = mod_data.spawn_offset or _default_spawn_offset
-	mod_data.force_settings = mod_data.force_settings or {
+	_mod_data = global.ST
+	_mod_data.forces_researched = {}
+	_mod_data.teams_main_base = _mod_data.teams_main_base or {}
+	_mod_data.spawn_offset = _mod_data.spawn_offset or _default_spawn_offset
+	_mod_data.force_settings = _mod_data.force_settings or {
 		[player_force_index] = {},
 		[enemy_force_index] = {},
 		[neutral_force_index] = {}
 	}
-	mod_data.first_team_players = mod_data.first_team_players or {
+	_mod_data.first_team_players = _mod_data.first_team_players or {
 		[player_force_index] = {},
 		[enemy_force_index] = {},
 		[neutral_force_index] = {}
 	}
-	mod_data.last_invite_id = mod_data.last_invite_id or 0
-	mod_data.player_invite_requests = mod_data.player_invite_requests or {}
-	mod_data.force_invite_requests = mod_data.force_invite_requests or {
+	_mod_data.last_invite_id = _mod_data.last_invite_id or 0
+	_mod_data.player_invite_requests = _mod_data.player_invite_requests or {}
+	_mod_data.force_invite_requests = _mod_data.force_invite_requests or {
 		[player_force_index] = {},
 		[enemy_force_index] = {},
 		[neutral_force_index] = {}
@@ -1117,7 +1199,7 @@ local function update_global_data()
 
 	for player_index, player in pairs(game.players) do
 		if player.valid then
-			player_invite_requests[player_index] = player_invite_requests[player_index] or {}
+			_player_invite_requests[player_index] = _player_invite_requests[player_index] or {}
 
 			local relative = player.gui.relative
 			if relative.bt_buttons == nil then
@@ -1128,15 +1210,21 @@ local function update_global_data()
 		end
 	end
 
-	for force_index in pairs(force_settings) do
+	for force_index in pairs(_team_settings) do
 		if game.forces[force_index] == nil then
-			force_settings[force_index] = nil
+			_team_settings[force_index] = nil
 		end
 	end
 
-	for force_index, players_list in pairs(first_team_players) do
+	for id, entity in pairs(_teams_main_base_structure) do
+		if not entity.valid then
+			_teams_main_base_structure[id] = nil
+		end
+	end
+
+	for force_index, players_list in pairs(_first_team_players) do
 		if game.forces[force_index] == nil then
-			force_settings[force_index] = nil
+			_team_settings[force_index] = nil
 		else
 			for i=#players_list, 1, -1 do
 				local player = game.get_player(players_list[i])
@@ -1147,9 +1235,9 @@ local function update_global_data()
 		end
 	end
 
-	for force_index, players_data in pairs(force_invite_requests) do
+	for force_index, players_data in pairs(_force_invite_requests) do
 		if game.forces[force_index] == nil then
-			force_invite_requests[force_index] = nil
+			_force_invite_requests[force_index] = nil
 		else
 			for player_index in pairs(players_data) do
 				local player = game.get_player(player_index)
@@ -1189,14 +1277,14 @@ local function handle_custom_events()
 		end
 
 		local force_index = player_force.index
-		local bandits_force_index = mod_data.bandits_force_index
+		local bandits_force_index = _mod_data.bandits_force_index
 		if force_index ~= player_force_index and
 			force_index ~= enemy_force_index and
 			force_index ~= neutral_force_index and
-			force_index ~= void_force_index and
+			force_index ~= _void_force_index and
 			(bandits_force_index == nil or force_index ~= bandits_force_index)
 		then
-			local players_list = first_team_players[force_index]
+			local players_list = _first_team_players[force_index]
 			local is_new = true
 			for i = 1, #players_list do
 				if players_list[i] == player_index then
@@ -1212,7 +1300,7 @@ local function handle_custom_events()
 
 		local prev_force = event.prev_force
 		if not (prev_force and prev_force.valid) then return end
-		local players_list = first_team_players[prev_force.index]
+		local players_list = _first_team_players[prev_force.index]
 		if players_list then
 			for i = 1, #players_list do
 				if players_list[i] == player_index then
@@ -1245,21 +1333,21 @@ M.add_remote_interface = add_remote_interface
 
 
 M.events = {
-	[defines.events.on_runtime_mod_setting_changed] = on_runtime_mod_setting_changed,
+	[defines.events.on_runtime_mod_setting_changed] = M.on_runtime_mod_setting_changed,
 	-- [defines.events.on_game_created_from_scenario] = on_game_created_from_scenario,
-	[defines.events.on_forces_merged] = on_forces_merged,
-	[defines.events.on_forces_merging] = on_forces_merging,
-	[defines.events.on_gui_click] = on_gui_click,
-	[defines.events.on_gui_elem_changed] = on_gui_elem_changed,
-	[defines.events.on_player_created] = on_player_created,
-	[defines.events.on_force_created] = on_force_created,
-	[defines.events.on_player_joined_game] = on_player_joined_game,
-	[defines.events.on_player_left_game] = on_player_left_game,
+	[defines.events.on_forces_merged] = M.on_forces_merged,
+	[defines.events.on_forces_merging] = M.on_forces_merging,
+	[defines.events.on_gui_click] = M.on_gui_click,
+	[defines.events.on_gui_elem_changed] = M.on_gui_elem_changed,
+	[defines.events.on_player_created] = M.on_player_created,
+	[defines.events.on_force_created] = M.on_force_created,
+	[defines.events.on_player_joined_game] = M.on_player_joined_game,
+	[defines.events.on_player_left_game] = M.on_player_left_game,
 	[defines.events.on_player_removed] = function(event)
 		local player_index = event.player_index
-		player_invite_requests[player_index] = nil
+		_player_invite_requests[player_index] = nil
 
-		for _, players_list in pairs(first_team_players) do
+		for _, players_list in pairs(_first_team_players) do
 			for i=#players_list, 1, -1 do
 				if players_list[i] == player_index then
 					table.remove(players_list, i)
@@ -1272,15 +1360,16 @@ M.events = {
 			--TODO: recheck and improve
 			if game.forces.bandits == nil then
 				local force = game.create_force("bandits")
-				mod_data.bandits_force_index = force.index
+				_mod_data.bandits_force_index = force.index
 				call("EasyAPI", "add_team", force)
 			end
 		end
 	end,
 	[defines.events.on_player_changed_force] = function(event)
 		-- Perphaps, it's not so good
-		player_invite_requests[event.player_index] = {}
+		_player_invite_requests[event.player_index] = {}
 	end,
+	[defines.events.on_entity_destroyed] = M.on_entity_destroyed,
 	-- [defines.events.on_pre_player_removed] = on_pre_player_removed
 }
 
@@ -1306,7 +1395,7 @@ M.commands = {
 				return
 			end
 
-			local invites = player_invite_requests[player_index]
+			local invites = _player_invite_requests[player_index]
 			local invite = invites[new_team.index]
 			if invite == nil then
 				--TODO: change message
@@ -1318,16 +1407,16 @@ M.commands = {
 				if inviter.valid then
 					inviter_name = inviter.name
 				end
-				if player.force.index ~= mod_data.bandits_force_index
-					and player.force.index ~= void_force_index then
+				if player.force.index ~= _mod_data.bandits_force_index
+					and player.force.index ~= _void_force_index then
 					player.force.print("Player \"" .. inviter_name .. "\" added player \"" .. player.name .. "\" in team \"" .. new_team.name .. "\"")
 				end
 				player.force = new_team
 				player.force.print("Player \"" .. inviter_name .. "\" added player \"" .. player.name .. "\" in your team")
-				player_invite_requests[player_index] = {}
+				_player_invite_requests[player_index] = {}
 			end
 		else
-			local invites = player_invite_requests[player_index]
+			local invites = _player_invite_requests[player_index]
 			for force_index, invite in pairs(invites) do
 				if invite[1] == id then
 					local inviter = invite[2]
@@ -1336,12 +1425,12 @@ M.commands = {
 					if inviter.valid then
 						inviter_name = inviter.name
 					end
-					if player.force.index ~= mod_data.bandits_force_index then
+					if player.force.index ~= _mod_data.bandits_force_index then
 						player.force.print("Player \"" .. inviter_name .. "\" added player \"" .. player.name .. "\" in team \"" .. new_team.name .. "\"")
 					end
 					player.force = new_team
 					player.force.print("Player \"" .. inviter_name .. "\" added player \"" .. player.name .. "\" in your team")
-					player_invite_requests[player_index] = {}
+					_player_invite_requests[player_index] = {}
 					break
 				end
 			end
@@ -1351,7 +1440,7 @@ M.commands = {
 	show_team_invites = function(cmd)
 		local player_index = cmd.player_index
 		local player = game.get_player(player_index)
-		local invites = player_invite_requests[player_index]
+		local invites = _player_invite_requests[player_index]
 		local key = next(invites)
 		if key == nil then
 			player.print("You don't have any invites")
@@ -1399,7 +1488,7 @@ M.commands = {
 
 		if settings.global["bt_teleport_in_void_when_player_kicked_from_team"].value then
 			target.force = "void"
-			target.teleport({player.index * 150, 0}, game.get_surface(void_surface_index))
+			target.teleport({player.index * 150, 0}, game.get_surface(_void_surface_index))
 		else
 			-- WIP
 			target.force = "player"
