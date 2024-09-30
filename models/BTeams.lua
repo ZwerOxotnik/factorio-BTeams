@@ -2,8 +2,8 @@
 local M = {}
 
 
-local team_util = require("__EasyAPI__/models/team_util")
-local force_util = require("zk-lib/lualibs/control_stage/force-util")
+local team_util   = require("__EasyAPI__/models/team_util")
+local force_util  = require("zk-lib/lualibs/control_stage/force-util")
 local player_util = require("zk-lib/lualibs/control_stage/player-util")
 
 
@@ -1148,12 +1148,15 @@ local function add_remote_interface()
 		get_mod_data = function()
 			return _mod_data
 		end,
+		change_setting = function(type, name, value)
+			settings[type][name] = {value = value}
+		end,
 		get_bandits_force_index = function()
 			return _mod_data.bandits_force_index
 		end,
 		get_spawn_offset = function()
 			return _mod_data.spawn_offset
-		end
+		end,
 	})
 end
 
