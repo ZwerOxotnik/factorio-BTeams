@@ -1,4 +1,9 @@
 ﻿---------------------------------------------------------------------------------------------------
+Version: 0.0.18
+Date: 2024-10-01
+  Scripting:
+    - Added "show_teams_gui", "destroy_teams_frame", "destroy_team_gui" into the remote interface
+---------------------------------------------------------------------------------------------------
 Version: 0.0.17
 Date: 2024-10-01
   Changes:
@@ -7,7 +12,7 @@ Date: 2024-10-01
 Version: 0.0.16
 Date: 2024-09-30
   Features:
-    - Added "change_setting" to the remote interface
+    - Added "change_setting" into the remote interface
 ---------------------------------------------------------------------------------------------------
 Version: 0.0.15
 Date: 2023-09-03

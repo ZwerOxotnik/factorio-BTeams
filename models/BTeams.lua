@@ -522,7 +522,7 @@ local function update_teams_table(table_gui, player, teams)
 	end
 end
 
-local function destroy_team_gui(player)
+function M.destroy_team_gui(player)
 	local bt_show_team_frame = player.gui.screen.bt_show_team_frame
 	if bt_show_team_frame then
 		bt_show_team_frame.destroy()
@@ -639,7 +639,7 @@ local function switch_team_gui(player)
 	main_frame.force_auto_center()
 end
 
-local function destroy_teams_frame(player)
+function M.destroy_teams_frame(player)
 	local bt_teams_frame = player.gui.screen.bt_teams_frame
 	if bt_teams_frame then
 		bt_teams_frame.destroy()
@@ -739,8 +739,8 @@ function M.on_forces_merging(event)
 	local source = event.source
 	for _, player in pairs(source.connected_players) do
 		if player.valid then
-			destroy_team_gui(player)
-			destroy_teams_frame(player)
+			M.destroy_team_gui(player)
+			M.destroy_teams_frame(player)
 		end
 	end
 
@@ -1058,8 +1058,8 @@ function M.on_player_joined_game(event)
 	local player = game.get_player(player_index)
 	if not (player and player.valid) then return end
 
-	destroy_team_gui(player)
-	destroy_teams_frame(player)
+	M.destroy_team_gui(player)
+	M.destroy_teams_frame(player)
 
 	if player.online_time < 60 * 10 then
 		if settings.global["bt_auto_create_teams_gui_for_new_players"].value then
@@ -1084,8 +1084,8 @@ function M.on_player_left_game(event)
 	local player = game.get_player(event.player_index)
 	if not (player and player.valid) then return end
 
-	destroy_team_gui(player)
-	destroy_teams_frame(player)
+	M.destroy_team_gui(player)
+	M.destroy_teams_frame(player)
 end
 
 
@@ -1111,7 +1111,7 @@ end
 
 ---@param event on_pre_player_removed
 local function on_pre_player_removed(event)
-	local force_index = game.get_player(event.player_index).force.index
+	-- local force_index = game.get_player(event.player_index).force.index
 	--TODO: delete invite in invite_requests etc
 end
 
@@ -1166,6 +1166,15 @@ local function add_remote_interface()
 		get_spawn_offset = function()
 			return _mod_data.spawn_offset
 		end,
+		show_teams_gui = function(player)
+			local screen = player.gui.screen
+			if screen.bt_teams_frame then
+				switch_teams_gui(player)
+			end
+			switch_teams_gui(player)
+		end,
+		destroy_team_gui    = M.destroy_team_gui,
+		destroy_teams_frame = M.destroy_teams_frame,
 	})
 end
 
@@ -1217,8 +1226,8 @@ local function update_global_data()
 			if relative.bt_buttons == nil then
 				create_left_relative_gui(player)
 			end
-			destroy_teams_frame(player)
-			destroy_team_gui(player)
+			M.destroy_teams_frame(player)
+			M.destroy_team_gui(player)
 		end
 	end
 
