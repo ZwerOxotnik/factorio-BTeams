@@ -209,7 +209,12 @@ function abandon_team(player)
 		if prev_force == forces.player then return end
 		if _void_force_index and prev_force.index == _void_force_index then return end
 		if _mod_data.bandits_force_index and prev_force.index == _mod_data.bandits_force_index then return end
-		game.merge_forces(prev_force, forces.neutral)
+
+		if call("EasyAPI", "find_team", prev_force.index) and
+		   call("EasyAPI", "is_team_deletable", prev_force.index)
+		then
+			game.merge_forces(prev_force, forces.neutral)
+		end
 	end
 end
 
@@ -955,7 +960,11 @@ local GUIS = {
 			then
 				--TODO: Improve
 			else
-				game.merge_forces(prev_force, game.forces.enemy)
+				if call("EasyAPI", "find_team", prev_force.index) and
+				   call("EasyAPI", "is_team_deletable", prev_force.index)
+				then
+					game.merge_forces(prev_force, game.forces.enemy)
+				end
 			end
 		end
 
