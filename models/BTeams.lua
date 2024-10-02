@@ -194,10 +194,12 @@ function abandon_team(player)
 
 	if settings.global["bt_teleport_in_void_when_player_abandon_team"].value then
 		if prev_force.name == "void" then return end
+		player.ticks_to_respawn = nil -- respawn
 		player.force = "void"
 		player.teleport({player.index * 150, 0}, game.get_surface(_void_surface_index))
 	else
 		if prev_force.name == "player" then return end
+		player.ticks_to_respawn = nil -- respawn
 		-- WIP
 		player.force = "player"
 	end
@@ -866,9 +868,11 @@ local GUIS = {
 
 
 		if settings.global["bt_teleport_in_void_when_player_kicked_from_team"].value then
+			player.ticks_to_respawn = nil -- respawn
 			target.force = "void"
 			target.teleport({player.index * 150, 0}, game.get_surface(_void_surface_index))
 		else
+			player.ticks_to_respawn = nil -- respawn
 			-- WIP
 			target.force = "player"
 		end
@@ -948,6 +952,7 @@ local GUIS = {
 
 		local prev_force = player.force
 		parent.parent.parent.destroy()
+		player.ticks_to_respawn = nil -- respawn
 		player.force = new_team
 		if #prev_force.players == 0 then
 			local prev_force_index = prev_force.index
@@ -981,6 +986,7 @@ local GUIS = {
 			return
 		end
 
+		player.ticks_to_respawn = nil -- respawn
 		player.force = force
 		local surface = get_team_game_surface(player)
 		local f_spawn_position = force.get_spawn_position(surface)
@@ -1432,6 +1438,7 @@ M.commands = {
 					and player.force.index ~= _void_force_index then
 					player.force.print("Player \"" .. inviter_name .. "\" added player \"" .. player.name .. "\" in team \"" .. new_team.name .. "\"")
 				end
+				player.ticks_to_respawn = nil -- respawn
 				player.force = new_team
 				player.force.print("Player \"" .. inviter_name .. "\" added player \"" .. player.name .. "\" in your team")
 				_player_invite_requests[player_index] = {}
@@ -1449,6 +1456,7 @@ M.commands = {
 					if player.force.index ~= _mod_data.bandits_force_index then
 						player.force.print("Player \"" .. inviter_name .. "\" added player \"" .. player.name .. "\" in team \"" .. new_team.name .. "\"")
 					end
+					player.ticks_to_respawn = nil -- respawn
 					player.force = new_team
 					player.force.print("Player \"" .. inviter_name .. "\" added player \"" .. player.name .. "\" in your team")
 					_player_invite_requests[player_index] = {}
@@ -1508,9 +1516,11 @@ M.commands = {
 		end
 
 		if settings.global["bt_teleport_in_void_when_player_kicked_from_team"].value then
+			player.ticks_to_respawn = nil -- respawn
 			target.force = "void"
 			target.teleport({player.index * 150, 0}, game.get_surface(_void_surface_index))
 		else
+			player.ticks_to_respawn = nil -- respawn
 			-- WIP
 			target.force = "player"
 		end
