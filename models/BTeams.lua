@@ -986,6 +986,9 @@ local GUIS = {
 			return
 		end
 
+		if player.controller_type == defines.controllers.editor then
+			player.toggle_map_editor()
+		end
 		player.ticks_to_respawn = nil -- respawn
 		player.force = force
 		local surface = get_team_game_surface(player)
