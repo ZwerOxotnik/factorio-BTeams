@@ -533,13 +533,10 @@ function M.destroy_team_gui(player)
 end
 
 --TODO: change (it's too raw etc)
-local function switch_team_gui(player)
-	local screen = player.gui.screen
-	if screen.bt_show_team_frame then
-		screen.bt_show_team_frame.destroy()
-		return
-	end
+function M.switch_team_gui(player)
+	M.destroy_team_gui(player)
 
+	local screen = player.gui.screen
 	local main_frame = screen.add{type = "frame", name = "bt_show_team_frame", direction = "vertical"}
 	local top_flow = main_frame.add(TITLEBAR_FLOW)
 	top_flow.add{
@@ -649,13 +646,10 @@ function M.destroy_teams_frame(player)
 	end
 end
 
-local function switch_teams_gui(player)
-	local screen = player.gui.screen
-	if screen.bt_teams_frame then
-		screen.bt_teams_frame.destroy()
-		return
-	end
+function M.switch_teams_gui(player)
+	M.destroy_teams_frame(player)
 
+	local screen = player.gui.screen
 	local main_frame = screen.add{type = "frame", name = "bt_teams_frame", direction = "vertical"}
 	local top_flow = main_frame.add(TITLEBAR_FLOW)
 	top_flow.add{type = "label",
@@ -927,10 +921,10 @@ local GUIS = {
 			player.print("This force doesn't support this action")
 			return
 		end
-		switch_team_gui(player)
+		M.switch_team_gui(player)
 	end,
 	bt_teams = function(element, player)
-		switch_teams_gui(player)
+		M.switch_teams_gui(player)
 	end,
 	bt_refresh_teams_table = function(element, player)
 		update_teams_table(element.parent.parent.shallow_frame.table_frame.teams_table, player)
@@ -983,6 +977,12 @@ local GUIS = {
 		local force = game.forces[element.parent.name]
 		if not (force and force.valid) then
 			player.print({"error.error-message-box-title"}, {1, 0, 0})
+			return
+		end
+
+		local is_player_allowed_to_change_team, ticks = call("EasyAPI", "is_player_allowed_to_change_team", player.index)
+		if not is_player_allowed_to_change_team then
+			team_util.inform_player_cant_join_team(player, ticks)
 			return
 		end
 
@@ -1074,7 +1074,7 @@ function M.on_player_joined_game(event)
 		if settings.global["bt_auto_create_teams_gui_for_new_players"].value then
 			local screen = player.gui.screen
 			if screen.bt_teams_frame == nil then
-				switch_teams_gui(player)
+				M.switch_teams_gui(player)
 			end
 		end
 	end
@@ -1178,9 +1178,9 @@ local function add_remote_interface()
 		show_teams_gui = function(player)
 			local screen = player.gui.screen
 			if screen.bt_teams_frame then
-				switch_teams_gui(player)
+				M.switch_teams_gui(player)
 			end
-			switch_teams_gui(player)
+			M.switch_teams_gui(player)
 		end,
 		destroy_team_gui    = M.destroy_team_gui,
 		destroy_teams_frame = M.destroy_teams_frame,
@@ -1340,6 +1340,20 @@ local function handle_custom_events()
 			end
 		end
 	end)
+
+	script.on_event(call("EasyAPI", "get_event_name", "on_round_start"), function(event)
+		for _, player in pairs(game.players) do
+			M.destroy_teams_frame(player)
+			M.switch_teams_gui(player)
+		end
+	end)
+
+	script.on_event(call("EasyAPI", "get_event_name", "on_round_end"), function(event)
+		for _, player in pairs(game.players) do
+			M.destroy_teams_frame(player)
+		end
+	end)
+
 	-- script.on_event(call("EasyAPI", "get_event_name", "on_player_left_team"), function(event)
 	-- end)
 	-- custom_events.on_team_invited
@@ -1406,10 +1420,10 @@ M.events = {
 
 M.commands = {
 	open_team_gui = function(cmd)
-		switch_team_gui(game.get_player(cmd.player_index))
+		M.switch_team_gui(game.get_player(cmd.player_index))
 	end,
 	open_teams_gui = function(cmd)
-		switch_teams_gui(game.get_player(cmd.player_index))
+		M.switch_teams_gui(game.get_player(cmd.player_index))
 	end,
 	--TODO: add localization
 	accept_team_invite = function(cmd)
@@ -1441,7 +1455,6 @@ M.commands = {
 					and player.force.index ~= _void_force_index then
 					player.force.print("Player \"" .. inviter_name .. "\" added player \"" .. player.name .. "\" in team \"" .. new_team.name .. "\"")
 				end
-				player.ticks_to_respawn = nil -- respawn
 				player.force = new_team
 				player.force.print("Player \"" .. inviter_name .. "\" added player \"" .. player.name .. "\" in your team")
 				_player_invite_requests[player_index] = {}
@@ -1459,7 +1472,6 @@ M.commands = {
 					if player.force.index ~= _mod_data.bandits_force_index then
 						player.force.print("Player \"" .. inviter_name .. "\" added player \"" .. player.name .. "\" in team \"" .. new_team.name .. "\"")
 					end
-					player.ticks_to_respawn = nil -- respawn
 					player.force = new_team
 					player.force.print("Player \"" .. inviter_name .. "\" added player \"" .. player.name .. "\" in your team")
 					_player_invite_requests[player_index] = {}
