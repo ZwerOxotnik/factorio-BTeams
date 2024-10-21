@@ -80,7 +80,7 @@ local SEARCH_BUTTON = {
 local CLOSE_BUTTON = {
 	hovered_sprite = "utility/close_black",
 	clicked_sprite = "utility/close_black",
-	sprite = "utility/close_white",
+	sprite = "utility/close_black", -- TODO: change to white
 	style = "frame_action_button",
 	type = "sprite-button",
 	name = "bt_close"
@@ -349,7 +349,7 @@ local function set_team_base(player)
 				position = new_position,
 				force = player_force
 			} -- perhaps, wrong position
-			local id = script.register_on_entity_destroyed(entity)
+			local id = script.register_on_object_destroyed(entity)
 			_teams_main_base_structure[id] = {
 				force  = player_force,
 				entity = entity
@@ -1098,8 +1098,8 @@ function M.on_player_left_game(event)
 end
 
 
----@param event on_entity_destroyed
-function M.on_entity_destroyed(event)
+---@param event on_object_destroyed
+function M.on_object_destroyed(event)
 	local data = _teams_main_base_structure[event.registration_number]
 	if not data then return end
 
@@ -1188,7 +1188,7 @@ local function add_remote_interface()
 end
 
 local function link_data()
-	_mod_data = global.ST
+	_mod_data = storage.ST
 	_team_settings = _mod_data.force_settings
 	_first_team_players = _mod_data.first_team_players
 	_forces_researched = _mod_data.forces_researched
@@ -1200,8 +1200,8 @@ local function link_data()
 end
 
 local function update_global_data()
-	global.ST = global.ST or {}
-	_mod_data = global.ST
+	storage.ST = storage.ST or {}
+	_mod_data = storage.ST
 	_mod_data.forces_researched = {}
 	_mod_data.teams_main_base = _mod_data.teams_main_base or {}
 	_mod_data.spawn_offset = _mod_data.spawn_offset or _default_spawn_offset
@@ -1413,7 +1413,7 @@ M.events = {
 		-- Perphaps, it's not so good
 		_player_invite_requests[event.player_index] = {}
 	end,
-	[defines.events.on_entity_destroyed] = M.on_entity_destroyed,
+	[defines.events.on_object_destroyed] = M.on_object_destroyed,
 	-- [defines.events.on_pre_player_removed] = on_pre_player_removed
 }
 
