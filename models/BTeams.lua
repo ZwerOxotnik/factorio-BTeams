@@ -73,9 +73,9 @@ local SEARCH_BUTTON = {
 	type = "sprite-button",
 	name = "bt_search",
 	style = "zk_action_button_dark",
-	sprite = "utility/search_white",
-	hovered_sprite = "utility/search_black",
-	clicked_sprite = "utility/search_black"
+	sprite = "utility/search",
+	hovered_sprite = "utility/search",
+	clicked_sprite = "utility/search"
 }
 local CLOSE_BUTTON = {
 	hovered_sprite = "utility/close_black",
